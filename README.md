@@ -31,8 +31,8 @@ Validation MAAE (mean absolute angular error, degrees, lower is better) of the c
 | vitt-128 | ViT-T/16 | 128x128 | 5.6 | 0.374<br>0.748 | 3.3 | 0.72 | 0.64 |
 | vitt-064 | ViT-T/16 | 64x64 | 5.6 | 0.094<br>0.188 | 1.8 | 0.80 | 0.70 |
 | hgnetv2-064 | PP-HGNetV2-B0 | 64x64 | 1.9 | 0.039<br>0.078 | 0.7 | 2.60 | 2.13 |
-| yawnet-064 | MBConv | 64x64 | 0.76 | 0.013<br>0.026 | 0.7 | 5.64 | 7.55 |
 | yawnet-128 | MBConv | 128x128 | 0.76 | 0.050<br>0.101 | 1.1 | 5.47 | 7.69 |
+| yawnet-064 | MBConv | 64x64 | 0.76 | 0.013<br>0.026 | 0.7 | 5.64 | 7.55 |
 
 **Integrated one-pass HFHPE** (`hfhpe_*.onnx` = roll branch + in-graph derotation + the body above; the roll branch adds 0.77M params):
 
@@ -42,8 +42,8 @@ Validation MAAE (mean absolute angular error, degrees, lower is better) of the c
 | hfhpe_vitt | ViT-T/16 | 128x128 | 6.4 | 0.425<br>0.849 | 4.9 | 0.72 | 0.64 | 2.85 |
 | hfhpe_vitt | ViT-T/16 | 64x64 | 6.4 | 0.107<br>0.214 | 2.5 | 0.80 | 0.70 | 3.29 |
 | hfhpe_hgnetv2 | PP-HGNetV2-B0 | 64x64 | 2.6 | 0.052<br>0.104 | 1.4 | 2.60 | 2.13 | 3.29 |
+| hfhpe_yawnet | MBConv | 128x128 | 1.6 | 0.101<br>0.202 | 2.6 | 5.47 | 7.69 | 2.85 |
 | hfhpe_yawnet | MBConv | 64x64 | 1.5 | 0.026<br>0.051 | 1.4 | 5.64 | 7.55 | 3.29 |
-| hfhpe_yawnet (128 px) | MBConv | 128x128 | 1.6 | 0.101<br>0.202 | 2.6 | 5.47 | 7.69 | 2.85 |
 
 **How to read these numbers (important):** the models are trained with `--unified` (train + validation merged on purpose), so the yaw/pitch values above measure how well each model fits the training distribution and **must not be compared with published benchmark results**. They are selection metrics, useful for comparing the rows against each other. The yaw/pitch columns are the same in both tables because the roll branch does not change the body; the integrated table adds the roll estimate, the derotation and their cost. The roll column is the roll branch — a YawNet w1.0 (0.77M) distilled online from a DINOv3 ViT-L/16 roll teacher trained at 320×320, run at 64×64 for the 64 px students and at 128×128 for hfhpe_dinov3 and the 128 px hfhpe_vitt / hfhpe_yawnet — evaluated on **wedge-free canvas rotations** of the validation crops, an honest protocol in which the four corners are filled with real context pixels instead of border replication.
 

@@ -12,6 +12,9 @@ A training, distillation and ONNX deployment pipeline for **one-pass yaw / pitch
 - **Roll is decoupled from yaw/pitch, by design.** Synthesizing a head at a prescribed yaw and pitch while keeping the composition intact is not difficult once the right generation conditions are met, but roll is hard to express, and a roll twist skews the directions along which yaw and pitch are estimated. Only yaw and pitch are therefore prescribed strictly: every yaw/pitch image is generated upright (roll assumed to be 0°), and roll is learned on its own from upright crops rotated in-plane by a known angle, which makes the roll ground truth exact.
 - **Occlusion diversity is generated, not only erased.** On top of the strictly prescribed yaw and pitch, the dataset emphasizes the diversity of head occlusion by accessories that are likely to occur in the real world. It contains a large number of pose–accessory combinations that hardly exist in public datasets, so that occlusion robustness does not rest solely on simplistic, unrealistic preprocessing such as Random Erasing or Cutout.
 
+> [!NOTE]
+> Approximately 24 ms of the inference time is spent on object detection by DEIMv2.
+
 - CUDA12.8 + RTX3070 + DEIMv2-S + HFHPE-ViTT 64x64 + webcam realtime
 
   https://github.com/user-attachments/assets/145bd7ce-e9a9-4e54-b5dc-90e9bc217bb1

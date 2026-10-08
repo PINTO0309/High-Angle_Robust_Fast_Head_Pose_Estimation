@@ -22,6 +22,7 @@ Validation MAAE (mean absolute angular error, degrees, lower is better) of the c
 |---|---|--:|--:|--:|--:|--:|--:|
 | dinov3-320 | ViT-L/16 | 320x320 | 304.2 | 130.7<br>261.4 | 352 | 0.29 | 0.23 |
 | vitt-064 | ViT-T/16 | 64x64 | 5.6 | 0.094<br>0.188 | 1.8 | 0.80 | 0.70 |
+| vitt-128 | ViT-T/16 | 128x128 | 5.6 | 0.374<br>0.748 | 3.3 | 0.72 | 0.64 |
 | hgnetv2-064 | PP-HGNetV2-B0 | 64x64 | 1.9 | 0.039<br>0.078 | 0.7 | 2.60 | 2.13 |
 | yawnet-064 | MBConv | 64x64 | 0.76 | 0.013<br>0.026 | 0.7 | 5.64 | 7.55 |
 
@@ -31,10 +32,11 @@ Validation MAAE (mean absolute angular error, degrees, lower is better) of the c
 |---|---|--:|--:|--:|--:|--:|--:|--:|
 | hfhpe_dinov3 | ViT-L/16 | 320x320 | 305.1 | 130.7<br>261.5 | 354 | 0.29 | 0.23 | 2.85 |
 | hfhpe_vitt | ViT-T/16 | 64x64 | 6.4 | 0.107<br>0.214 | 2.5 | 0.80 | 0.70 | 3.29 |
+| hfhpe_vitt (128 px) | ViT-T/16 | 128x128 | 6.4 | 0.425<br>0.849 | 4.9 | 0.72 | 0.64 | 2.85 |
 | hfhpe_hgnetv2 | PP-HGNetV2-B0 | 64x64 | 2.6 | 0.052<br>0.104 | 1.4 | 2.60 | 2.13 | 3.29 |
 | hfhpe_yawnet | MBConv | 64x64 | 1.5 | 0.026<br>0.051 | 1.4 | 5.64 | 7.55 | 3.29 |
 
-**How to read these numbers (important):** the models are trained with `--unified` (train + validation merged on purpose), so the yaw/pitch values above measure how well each model fits the training distribution and **must not be compared with published benchmark results**. They are selection metrics, useful for comparing the rows against each other. The yaw/pitch columns are the same in both tables because the roll branch does not change the body; the integrated table adds the roll estimate, the derotation and their cost. The roll column is the roll branch — a YawNet w1.0 (0.77M) distilled online from a DINOv3 ViT-L/16 roll teacher trained at 320×320, run at 64×64 for the three students and at 128×128 for hfhpe_dinov3 — evaluated on **wedge-free canvas rotations** of the validation crops, an honest protocol in which the four corners are filled with real context pixels instead of border replication.
+**How to read these numbers (important):** the models are trained with `--unified` (train + validation merged on purpose), so the yaw/pitch values above measure how well each model fits the training distribution and **must not be compared with published benchmark results**. They are selection metrics, useful for comparing the rows against each other. The yaw/pitch columns are the same in both tables because the roll branch does not change the body; the integrated table adds the roll estimate, the derotation and their cost. The roll column is the roll branch — a YawNet w1.0 (0.77M) distilled online from a DINOv3 ViT-L/16 roll teacher trained at 320×320, run at 64×64 for the 64 px students and at 128×128 for hfhpe_dinov3 and the 128 px hfhpe_vitt — evaluated on **wedge-free canvas rotations** of the validation crops, an honest protocol in which the four corners are filled with real context pixels instead of border replication.
 
 ## 2. Features
 
@@ -55,9 +57,9 @@ Validation MAAE (mean absolute angular error, degrees, lower is better) of the c
 | Backbone | DINOv3 ViT-L/16 (weights not vendored) | ViT-T/16 (own implementation, initialized from `ckpts/vitt_distill.pt`) | PP-HGNetV2-B0, final stage stride-1 (own implementation, initialized from `ckpts/PPHGNetV2_B0_stage1.pth`) | MBConv CNN (own implementation, from scratch) |
 | Head | 6 outputs: yaw/pitch biternion + κ each | same | same | same |
 | Input normalization | ImageNet mean/std | center05 `x/127.5 − 1` | center05 | center05 |
-| Roll branch | YawNet w1.0, 0.77M params, center05, distilled from a DINOv3 ViT-L/16 roll teacher (320×320); run at 128×128 for hfhpe_dinov3 and at 64×64 for the students (the body input is resized to the roll size inside the graph) | | | |
+| Roll branch | YawNet w1.0, 0.77M params, center05, distilled from a DINOv3 ViT-L/16 roll teacher (320×320); run at 128×128 for hfhpe_dinov3 and the 128 px vitt, and at 64×64 for the 64 px students (the body input is resized to the roll size inside the graph) | | | |
 
-Integrated HFHPE ONNX (`hfhpe_*.onnx`; the yaw/pitch-only exports `*_1x3xSxS.onnx` / `*_kappa_*.onnx` omit the roll fields). The `hfhpe_*_rollgate_*.onnx` variants embed the κ-gated derotation (sigmoid gate; τ=20 for the three students, τ=95 for hfhpe_dinov3: with its 128×128 roll branch κ_roll saturates on almost every real image, so any non-saturated value signals an unreliable roll estimate) with the exact same I/O contract; the gate settings are also recorded in the ONNX metadata (`roll_gate`):
+Integrated HFHPE ONNX (`hfhpe_*.onnx`; the yaw/pitch-only exports `*_1x3xSxS.onnx` / `*_kappa_*.onnx` omit the roll fields). The `hfhpe_*_rollgate_*.onnx` variants embed the κ-gated derotation (sigmoid gate; τ=20 for the three students, τ=95 for hfhpe_dinov3 and the 128 px hfhpe_vitt: with the 128×128 roll branch κ_roll saturates on almost every real image, so any non-saturated value signals an unreliable roll estimate) with the exact same I/O contract; the gate settings are also recorded in the ONNX metadata (`roll_gate`):
 
 ```
 # RGB, center05 normalization x/127.5 - 1 (also for the dinov3 variant:
@@ -121,6 +123,14 @@ uv run python scripts/distill_yawnet.py \
 --teacher runs/dinov3_vitl16_320_yp_unified_teacher \
 --student-arch vitt --student-size 64 --pitch-head --unified \
 --vram 96 --lr-schedule wsd --epochs 75 --decay-epochs 20 --ema-decay 0.999 \
+--data data/yawpitchpose --tag v1
+## ViT-T @128 (warm-started from the 64 px student; pairs with the 128 px roll branch)
+uv run python scripts/distill_yawnet.py \
+--teacher runs/dinov3_vitl16_320_yp_unified_teacher \
+--init-student runs/vitt_distill_064_yp_unified_v9 \
+--student-arch vitt --student-size 128 --pitch-head --unified \
+--vram 96 --lr 2e-4 --lr-backbone 2e-5 --grad-clip 1.0 \
+--lr-schedule wsd --epochs 150 --decay-epochs 100 --ema-decay 0.999 \
 --data data/yawpitchpose --tag v1
 ## PP-HGNetV2-B0 CNN @64
 uv run python scripts/distill_yawnet.py \
@@ -208,6 +218,8 @@ uv run python scripts/export_hfhpe.py \
 --roll-gate sigmoid --roll-gate-tau 95 \
 --kappa-tol 1e-2 \
 --nbatch-atol 1e-3
+# the 128 px vitt is exported the same way: --body-ckpt runs/vitt_distill_128_yp_unified_v9
+# with the 128 px roll branch and --roll-gate-tau 95
 
 # Validation preview sheets (3x3; deterministic per --set)
 uv run python scripts/render_preview.py \

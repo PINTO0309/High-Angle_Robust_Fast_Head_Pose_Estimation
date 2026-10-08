@@ -244,8 +244,9 @@ uv run python demo/demo_hfhpe_onnx.py -i images_dir -o output_dir
 # video file / camera 0
 uv run python demo/demo_hfhpe_onnx.py -v input.mp4 -o output_dir
 uv run python demo/demo_hfhpe_onnx.py -v 0 -o output_dir
+uv run python demo/demo_hfhpe_onnx.py -pm models/hfhpe_vitt_1x3x64x64.onnx -v 0 -o output_dir --head_score_threshold 0.35
 # TensorRT EP (engine cache under models/trt_cache)
-uv run --no-group ort --group tensorrt python demo/demo_hfhpe_onnx.py -v 0 -o output_dir -d tensorrt
+uv run --no-group ort --group tensorrt python demo/demo_hfhpe_onnx.py -v 0 -o output_dir -d tensorrt --head_score_threshold 0.70
 # swap the pose model
 uv run python demo/demo_hfhpe_onnx.py -pm models/hfhpe_hgnetv2_Nx3x64x64.onnx -v 0 -o output_dir
 # N-batch graph of the default model (all heads of a frame in one pass)

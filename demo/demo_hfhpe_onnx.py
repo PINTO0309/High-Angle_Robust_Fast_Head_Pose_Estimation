@@ -55,7 +55,7 @@ except ImportError:
 import onnxruntime as ort
 
 DEFAULT_DETECTOR = "models/deimv2_dinov3_s_wholebody49_boxes_only.onnx"
-DEFAULT_POSE = "models/hfhpe_vitt_rollgate_1x3x64x64.onnx"
+DEFAULT_POSE = "models/hfhpe_vitt_1x3x64x64.onnx"
 
 IMAGE_EXTENSIONS = {".jpg", ".jpeg", ".png", ".bmp", ".webp"}
 HEAD_CLASS_ID = 7
@@ -761,7 +761,7 @@ def parse_args() -> argparse.Namespace:
                     help="detector input normalization: auto = ImageNet mean/std for DINOv3-based "
                          "detectors and plain /255 for HGNetV2-based ones (detected from the graph). "
                          "The training crops were built with div255; pass it to reproduce them exactly")
-    ap.add_argument("--head_score_threshold", type=float, default=0.70,
+    ap.add_argument("--head_score_threshold", type=float, default=0.35,
                     help="head detection score threshold (the training crops were built with 0.30)")
     ap.add_argument("--crop_margin", type=float, default=0.05,
                     help="head-bbox expansion ratio per side of the square crop (crop-contract value: 0.05)")

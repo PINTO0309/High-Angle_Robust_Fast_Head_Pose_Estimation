@@ -334,6 +334,7 @@ ckpts/ models/ data/ runs/   weights, detector, datasets and training outputs (n
   title  = {{HFHPE}: High-Angle Robust Fast Head Pose Estimation},
   url    = {https://github.com/PINTO0309/High-Angle_Robust_Fast_Head_Pose_Estimation},
   year   = {2026},
+  doi    = {10.5281/zenodo.23252206},
 }
 ```
 

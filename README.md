@@ -319,14 +319,18 @@ demo/
 ckpts/ models/ data/ runs/   weights, detector, datasets and training outputs (not tracked by git)
 ```
 
-## 8. License
+## 8. Technical Articles and Datasets
+
+WIP
+
+## 9. License
 
 - Code: [MIT License](LICENSE) (Copyright (c) 2026 Katsuya Hyodo).
 - Weights: DINOv3 (Meta, DINOv3 License), vitt_distill and PP-HGNetV2 (DEIMv2, Apache-2.0) are neither bundled nor redistributed. Check the derived-work terms of these sources before distributing trained HFHPE weights or ONNX files.
 
-## 9. Citation and acknowledgements
+## 10. Citation and acknowledgements
 
-### 9.1 Citing this repository
+### 10.1 Citing this repository
 
 ```bibtex
 @software{hyodo2026hfhpe,
@@ -338,7 +342,7 @@ ckpts/ models/ data/ runs/   weights, detector, datasets and training outputs (n
 }
 ```
 
-### 9.2 Backbones, pretrained weights and tools
+### 10.2 Backbones, pretrained weights and tools
 
 **DINOv3** — teacher backbone (ViT-L/16); weights distributed under the DINOv3 License. Paper: https://arxiv.org/abs/2508.10104 · Code: https://github.com/facebookresearch/dinov3
 
@@ -407,7 +411,7 @@ ckpts/ models/ data/ runs/   weights, detector, datasets and training outputs (n
 }
 ```
 
-### 9.3 Methods referenced (reimplemented from the papers; no code was copied)
+### 10.3 Methods referenced (reimplemented from the papers; no code was copied)
 
 **BiternionNet** — the biternion output representation (unit `cos/sin` regression) and the von Mises loss used for every angle. The architectures are our own. Paper: https://lucasb.eyer.be/academic/biternions/biternions_gcpr15.pdf · Original implementation (MIT): https://github.com/lucasb-eyer/BiternionNet
 
@@ -421,7 +425,7 @@ ckpts/ models/ data/ runs/   weights, detector, datasets and training outputs (n
 }
 ```
 
-### 9.4 Acknowledgements
+### 10.4 Acknowledgements
 
 - Meta AI for DINOv3 and the DEIMv2 authors for the ViT-T and PP-HGNetV2 weights (originally from PaddlePaddle's PaddleClas / PaddleDetection).
 - The SynthYawPitchPose generation pools were produced with image-generation APIs; the synthetic data is not redistributed.

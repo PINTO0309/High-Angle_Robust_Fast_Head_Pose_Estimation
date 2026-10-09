@@ -13,7 +13,7 @@ A training, distillation and ONNX deployment pipeline for **one-pass yaw / pitch
 - **Occlusion diversity is generated, not only erased.** On top of the strictly prescribed yaw and pitch, the dataset emphasizes the diversity of head occlusion by accessories that are likely to occur in the real world. It contains a large number of pose–accessory combinations that hardly exist in public datasets, so that occlusion robustness does not rest solely on simplistic, unrealistic preprocessing such as Random Erasing or Cutout.
 
 > [!NOTE]
-> Approximately 24 ms of the inference time is spent on object detection by DEIMv2.
+> Approximately 24 ms of the inference time is spent on object detection by DEIMv2. The head detection model does not need to be DEIMv2; a lightweight object detection model such as YOLO is sufficient.
 
 - CUDA12.8 + RTX3070 + DEIMv2-S + HFHPE-ViTT 64x64 + webcam realtime
 
@@ -338,6 +338,7 @@ WIP
   title  = {{HFHPE}: High-Angle Robust Fast Head Pose Estimation},
   url    = {https://github.com/PINTO0309/High-Angle_Robust_Fast_Head_Pose_Estimation},
   year   = {2026},
+  month  = {10},
   doi    = {10.5281/zenodo.23252206},
 }
 ```

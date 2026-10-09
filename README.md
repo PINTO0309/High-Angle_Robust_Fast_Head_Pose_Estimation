@@ -1,6 +1,6 @@
 # HFHPE: High-Angle Robust Fast Head Pose Estimation
 
-![GitHub](./assets/mit.svg) [![Ask DeepWiki](./assets/badge.svg)](https://deepwiki.com/PINTO0309/High-Angle_Robust_Fast_Head_Pose_Estimation)
+![GitHub](./assets/mit.svg) [![DOI](./assets/zenodo.23252206.svg)](https://doi.org/10.5281/zenodo.23252205) [![Ask DeepWiki](./assets/badge.svg)](https://deepwiki.com/PINTO0309/High-Angle_Robust_Fast_Head_Pose_Estimation)
 
 A training, distillation and ONNX deployment pipeline for **one-pass yaw / pitch / roll head-pose estimation that stays robust at extreme head poses and under heavy occlusion while remaining light enough for CPU inference**.
 

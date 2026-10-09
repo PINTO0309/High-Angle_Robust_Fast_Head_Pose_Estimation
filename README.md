@@ -31,6 +31,7 @@ Validation MAAE (mean absolute angular error, degrees, lower is better) of the c
 | vitt-128 | ViT-T/16 | 128x128 | 5.6 | 0.374<br>0.748 | 3.3 | 0.72 | 0.64 |
 | vitt-064 | ViT-T/16 | 64x64 | 5.6 | 0.094<br>0.188 | 1.8 | 0.80 | 0.70 |
 | hgnetv2-064 | PP-HGNetV2-B0 | 64x64 | 1.9 | 0.039<br>0.078 | 0.7 | 2.60 | 2.13 |
+| hgnetv2-128 | PP-HGNetV2-B0 | 128x128 | 1.9 | 0.156<br>0.312 | 1.4 | 2.09 | 1.99 |
 | yawnet-128 | MBConv | 128x128 | 0.76 | 0.050<br>0.101 | 1.1 | 5.47 | 7.69 |
 | yawnet-064 | MBConv | 64x64 | 0.76 | 0.013<br>0.026 | 0.7 | 5.64 | 7.55 |
 
@@ -42,10 +43,11 @@ Validation MAAE (mean absolute angular error, degrees, lower is better) of the c
 | hfhpe_vitt | ViT-T/16 | 128x128 | 6.4 | 0.425<br>0.849 | 4.9 | 0.72 | 0.64 | 2.85 |
 | hfhpe_vitt | ViT-T/16 | 64x64 | 6.4 | 0.107<br>0.214 | 2.5 | 0.80 | 0.70 | 3.29 |
 | hfhpe_hgnetv2 | PP-HGNetV2-B0 | 64x64 | 2.6 | 0.052<br>0.104 | 1.4 | 2.60 | 2.13 | 3.29 |
+| hfhpe_hgnetv2 (128 px) | PP-HGNetV2-B0 | 128x128 | 2.6 | 0.207<br>0.413 | 3.2 | 2.09 | 1.99 | 2.85 |
 | hfhpe_yawnet | MBConv | 128x128 | 1.6 | 0.101<br>0.202 | 2.6 | 5.47 | 7.69 | 2.85 |
 | hfhpe_yawnet | MBConv | 64x64 | 1.5 | 0.026<br>0.051 | 1.4 | 5.64 | 7.55 | 3.29 |
 
-**How to read these numbers (important):** the models are trained with `--unified` (train + validation merged on purpose), so the yaw/pitch values above measure how well each model fits the training distribution and **must not be compared with published benchmark results**. They are selection metrics, useful for comparing the rows against each other. The yaw/pitch columns are the same in both tables because the roll branch does not change the body; the integrated table adds the roll estimate, the derotation and their cost. The roll column is the roll branch — a YawNet w1.0 (0.77M) distilled online from a DINOv3 ViT-L/16 roll teacher trained at 320×320, run at 64×64 for the 64 px students and at 128×128 for hfhpe_dinov3 and the 128 px hfhpe_vitt / hfhpe_yawnet — evaluated on **wedge-free canvas rotations** of the validation crops, an honest protocol in which the four corners are filled with real context pixels instead of border replication.
+**How to read these numbers (important):** the models are trained with `--unified` (train + validation merged on purpose), so the yaw/pitch values above measure how well each model fits the training distribution and **must not be compared with published benchmark results**. They are selection metrics, useful for comparing the rows against each other. The yaw/pitch columns are the same in both tables because the roll branch does not change the body; the integrated table adds the roll estimate, the derotation and their cost. The roll column is the roll branch — a YawNet w1.0 (0.77M) distilled online from a DINOv3 ViT-L/16 roll teacher trained at 320×320, run at 64×64 for the 64 px students and at 128×128 for hfhpe_dinov3 and the 128 px hfhpe_vitt / hfhpe_hgnetv2 / hfhpe_yawnet — evaluated on **wedge-free canvas rotations** of the validation crops, an honest protocol in which the four corners are filled with real context pixels instead of border replication.
 
 ## 2. Features
 
@@ -66,9 +68,9 @@ Validation MAAE (mean absolute angular error, degrees, lower is better) of the c
 | Backbone | DINOv3 ViT-L/16 (weights not vendored) | ViT-T/16 (own implementation, initialized from `ckpts/vitt_distill.pt`) | PP-HGNetV2-B0, final stage stride-1 (own implementation, initialized from `ckpts/PPHGNetV2_B0_stage1.pth`) | MBConv CNN (own implementation, from scratch) |
 | Head | 6 outputs: yaw/pitch biternion + κ each | same | same | same |
 | Input normalization | ImageNet mean/std | center05 `x/127.5 − 1` | center05 | center05 |
-| Roll branch | YawNet w1.0, 0.77M params, center05, distilled from a DINOv3 ViT-L/16 roll teacher (320×320); run at 128×128 for hfhpe_dinov3 and the 128 px vitt / yawnet, and at 64×64 for the 64 px students (the body input is resized to the roll size inside the graph) | | | |
+| Roll branch | YawNet w1.0, 0.77M params, center05, distilled from a DINOv3 ViT-L/16 roll teacher (320×320); run at 128×128 for hfhpe_dinov3 and the 128 px vitt / hgnetv2 / yawnet, and at 64×64 for the 64 px students (the body input is resized to the roll size inside the graph) | | | |
 
-Integrated HFHPE ONNX (`hfhpe_*.onnx`; the yaw/pitch-only exports `*_1x3xSxS.onnx` / `*_kappa_*.onnx` omit the roll fields). The `hfhpe_*_rollgate_*.onnx` variants embed the κ-gated derotation (sigmoid gate; τ=20 for the three students, τ=95 for hfhpe_dinov3 and the 128 px hfhpe_vitt / hfhpe_yawnet: with the 128×128 roll branch κ_roll saturates on almost every real image, so any non-saturated value signals an unreliable roll estimate) with the exact same I/O contract; the gate settings are also recorded in the ONNX metadata (`roll_gate`):
+Integrated HFHPE ONNX (`hfhpe_*.onnx`; the yaw/pitch-only exports `*_1x3xSxS.onnx` / `*_kappa_*.onnx` omit the roll fields). The `hfhpe_*_rollgate_*.onnx` variants embed the κ-gated derotation (sigmoid gate; τ=20 for the three students, τ=95 for hfhpe_dinov3 and the 128 px hfhpe_vitt / hfhpe_hgnetv2 / hfhpe_yawnet: with the 128×128 roll branch κ_roll saturates on almost every real image, so any non-saturated value signals an unreliable roll estimate) with the exact same I/O contract; the gate settings are also recorded in the ONNX metadata (`roll_gate`):
 
 ```
 # RGB, center05 normalization x/127.5 - 1 (also for the dinov3 variant:
@@ -145,6 +147,14 @@ uv run python scripts/distill_yawnet.py \
 uv run python scripts/distill_yawnet.py \
 --teacher runs/dinov3_vitl16_320_yp_unified_teacher \
 --student-arch hgnetv2 --student-size 64 --pitch-head --unified \
+--vram 96 --lr 2e-4 --lr-backbone 2e-5 --grad-clip 1.0 \
+--lr-schedule wsd --epochs 400 --decay-epochs 100 --ema-decay 0.999 \
+--data data/yawpitchpose --tag v1
+## PP-HGNetV2-B0 CNN @128 (warm-started from the 64 px student; pairs with the 128 px roll branch)
+uv run python scripts/distill_yawnet.py \
+--teacher runs/dinov3_vitl16_320_yp_unified_teacher \
+--init-student runs/hgnetv2_distill_064_yp_unified_v9 \
+--student-arch hgnetv2 --student-size 128 --pitch-head --unified \
 --vram 96 --lr 2e-4 --lr-backbone 2e-5 --grad-clip 1.0 \
 --lr-schedule wsd --epochs 400 --decay-epochs 100 --ema-decay 0.999 \
 --data data/yawpitchpose --tag v1
@@ -234,8 +244,8 @@ uv run python scripts/export_hfhpe.py \
 --roll-gate sigmoid --roll-gate-tau 95 \
 --kappa-tol 1e-2 \
 --nbatch-atol 1e-3
-# the 128 px vitt and yawnet are exported the same way (--body-ckpt runs/vitt_distill_128_yp_unified_v9
-# or runs/yawnet_distill_128_yp_unified_v9) with the 128 px roll branch and --roll-gate-tau 95
+# the 128 px vitt / hgnetv2 / yawnet are exported the same way (--body-ckpt runs/<arch>_distill_128_yp_unified_v9)
+# with the 128 px roll branch and --roll-gate-tau 95
 
 # Validation preview sheets (3x3; deterministic per --set)
 uv run python scripts/render_preview.py \
@@ -244,6 +254,14 @@ uv run python scripts/render_preview.py \
 # 3-axis overlay preview of the integrated ONNX (X=red right cheek, Y=green chin, Z=blue nose)
 uv run python scripts/render_hfhpe_preview.py \
 --onnx runs/vitt_distill_064_yp_unified_v9/hfhpe_vitt_1x3x64x64.onnx --set 1
+
+# 3-axis sheet of nine roll-canvas crops rotated by known angles (roll GT = the rotation),
+# then the teacher's CLS attention overlaid on the same nine cells
+uv run python scripts/render_hfhpe_axes_sheet.py \
+--onnx runs/vitt_distill_064_yp_unified/hfhpe_vitt_1x3x64x64.onnx
+uv run python scripts/render_hfhpe_axes_heatmap.py \
+--sheet-json runs/vitt_distill_064_yp_unified/hfhpe_axes_sheet_roll_canvas_synth.json \
+--ckpt runs/dinov3_vitl16_320_yp_unified_teacher
 ```
 
 Training logs are written to `runs/<run>/train_log.jsonl` (validation metrics per epoch); the best checkpoint is `runs/<run>/best_<val>.pt` and the resume checkpoint is `last.pt` (`--resume`).
@@ -291,6 +309,7 @@ scripts/
   # evaluation / previews
   eval_*.py val_preview.py render_preview.py render_hfhpe_preview.py
   render_roll_preview.py render_hfhpe_roll_preview.py plot_*.py
+  render_hfhpe_axes_sheet.py render_hfhpe_axes_heatmap.py   3-axis sheet of nine rotated crops and the teacher's CLS attention on the same cells
   # label auditing (mirror fixes, screening, verification)
   fix_*.py screen_*.py verify_*.py check_mirror_fix.py relabel_rear_teacher.py
 demo/

@@ -321,7 +321,10 @@ ckpts/ models/ data/ runs/   weights, detector, datasets and training outputs (n
 
 ## 8. Technical Articles and Datasets
 
-WIP
+- The dataset is available under the `PINTO-CC-BY-4.0-License-Version-1.0` at the end of the article below. Please note that this is a paid article.
+  - The `PINTO-CC-BY-4.0-License-Version-1.0` has substantially the same legal effect as the `CC-BY-4.0`.
+- The weights for the teacher model are distributed under the MIT License in the article below.
+- [506_HFHPE - Design of a Lightweight and Fast 6D Head Pose Estimation Model](https://note.com/pinto0309/n/n5be2ff7ec873?sub_rt=share_pw)
 
 ## 9. License
 

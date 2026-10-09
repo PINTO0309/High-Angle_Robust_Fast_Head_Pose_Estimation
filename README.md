@@ -30,8 +30,8 @@ Validation MAAE (mean absolute angular error, degrees, lower is better) of the c
 | dinov3-320 | ViT-L/16 | 320x320 | 304.2 | 130.7<br>261.4 | 352 | 0.29 | 0.23 |
 | vitt-128 | ViT-T/16 | 128x128 | 5.6 | 0.374<br>0.748 | 3.3 | 0.72 | 0.64 |
 | vitt-064 | ViT-T/16 | 64x64 | 5.6 | 0.094<br>0.188 | 1.8 | 0.80 | 0.70 |
-| hgnetv2-064 | PP-HGNetV2-B0 | 64x64 | 1.9 | 0.039<br>0.078 | 0.7 | 2.60 | 2.13 |
 | hgnetv2-128 | PP-HGNetV2-B0 | 128x128 | 1.9 | 0.156<br>0.312 | 1.4 | 2.09 | 1.99 |
+| hgnetv2-064 | PP-HGNetV2-B0 | 64x64 | 1.9 | 0.039<br>0.078 | 0.7 | 2.60 | 2.13 |
 | yawnet-128 | MBConv | 128x128 | 0.76 | 0.050<br>0.101 | 1.1 | 5.47 | 7.69 |
 | yawnet-064 | MBConv | 64x64 | 0.76 | 0.013<br>0.026 | 0.7 | 5.64 | 7.55 |
 
@@ -42,8 +42,8 @@ Validation MAAE (mean absolute angular error, degrees, lower is better) of the c
 | hfhpe_dinov3 | ViT-L/16 | 320x320 | 305.1 | 130.7<br>261.5 | 354 | 0.29 | 0.23 | 2.85 |
 | hfhpe_vitt | ViT-T/16 | 128x128 | 6.4 | 0.425<br>0.849 | 4.9 | 0.72 | 0.64 | 2.85 |
 | hfhpe_vitt | ViT-T/16 | 64x64 | 6.4 | 0.107<br>0.214 | 2.5 | 0.80 | 0.70 | 3.29 |
+| hfhpe_hgnetv2 | PP-HGNetV2-B0 | 128x128 | 2.6 | 0.207<br>0.413 | 3.2 | 2.09 | 1.99 | 2.85 |
 | hfhpe_hgnetv2 | PP-HGNetV2-B0 | 64x64 | 2.6 | 0.052<br>0.104 | 1.4 | 2.60 | 2.13 | 3.29 |
-| hfhpe_hgnetv2 (128 px) | PP-HGNetV2-B0 | 128x128 | 2.6 | 0.207<br>0.413 | 3.2 | 2.09 | 1.99 | 2.85 |
 | hfhpe_yawnet | MBConv | 128x128 | 1.6 | 0.101<br>0.202 | 2.6 | 5.47 | 7.69 | 2.85 |
 | hfhpe_yawnet | MBConv | 64x64 | 1.5 | 0.026<br>0.051 | 1.4 | 5.64 | 7.55 | 3.29 |
 

@@ -31,6 +31,10 @@ A training, distillation and ONNX deployment pipeline for **one-pass yaw / pitch
 
   <img width="640" height="480" alt="HFHPE ONNX demo_screenshot_10 10 2026" src="https://github.com/user-attachments/assets/6f0458e8-7e95-4ccd-b987-bb51f2d71eb6" />
 
+- VGA USB cam + Exposure time: 205 ms. The pitch is becoming quite unstable. It appears necessary to strengthen the brightness augmentation applied to the training data.
+
+  https://github.com/user-attachments/assets/e3c42c74-5f44-42c2-85a5-95729040c338
+
 ## 1. Results at a glance
 
 Validation MAAE (mean absolute angular error, degrees, lower is better) of the current generation (all four bodies retrained). Params and GMACs are counted on the exported ONNX graphs (`scripts/count_macs_onnx.py`; GFLOPs = 2 × GMACs). CPU ms = average latency of the batch-1 graph on an i9-10900K with onnxruntime 1.22 CPU EP, measured with [sit4onnx](https://github.com/PINTO0309/sit4onnx).

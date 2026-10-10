@@ -27,6 +27,10 @@ A training, distillation and ONNX deployment pipeline for **one-pass yaw / pitch
 
   https://github.com/user-attachments/assets/297b3d26-586a-4162-b722-e306480f143f
 
+- ELP-USB500W05G-BL170 (Fisheye) + Tested in an ultra-low-lux environment. Under such adverse conditions, there are too few cues for yaw, causing the system to fail.
+
+  <img width="640" height="480" alt="HFHPE ONNX demo_screenshot_10 10 2026" src="https://github.com/user-attachments/assets/6f0458e8-7e95-4ccd-b987-bb51f2d71eb6" />
+
 ## 1. Results at a glance
 
 Validation MAAE (mean absolute angular error, degrees, lower is better) of the current generation (all four bodies retrained). Params and GMACs are counted on the exported ONNX graphs (`scripts/count_macs_onnx.py`; GFLOPs = 2 × GMACs). CPU ms = average latency of the batch-1 graph on an i9-10900K with onnxruntime 1.22 CPU EP, measured with [sit4onnx](https://github.com/PINTO0309/sit4onnx).

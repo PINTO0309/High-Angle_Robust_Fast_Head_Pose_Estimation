@@ -231,39 +231,120 @@ def set_ort_log_level(level: str) -> None:
     ort.set_default_logger_severity(_ORT_LOG_LEVELS[level])
 
 
-def make_session(model_path: Path, providers: list) -> ort.InferenceSession:
-    if not model_path.exists():
-        raise FileNotFoundError(f"Model file not found: {model_path}")
+def make_session(model: Path | bytes, providers: list) -> ort.InferenceSession:
+    """Create a session from a model file or from serialized (e.g. pruned) model bytes."""
+    if isinstance(model, Path):
+        if not model.exists():
+            raise FileNotFoundError(f"Model file not found: {model}")
+        model = str(model)
     so = ort.SessionOptions()
     so.log_severity_level = 3
-    return ort.InferenceSession(str(model_path), sess_options=so, providers=providers)
+    return ort.InferenceSession(model, sess_options=so, providers=providers)
 
 
 # ---------------------------------------------------------------------------
 # Stage 1: DEIMv2-Wholebody49 (head detection)
 # ---------------------------------------------------------------------------
-def detect_detector_norm(model_path: Path) -> str:
+DETECTOR_OUTPUT = "label_xyxy_score"
+
+
+def load_onnx_model(model_path: Path):
+    """onnx.ModelProto of `model_path`, or None when the onnx package is missing or the file cannot
+    be parsed (the callers then fall back to the file name / the unmodified file)."""
+    try:
+        import onnx  # noqa: PLC0415
+        return onnx.load(str(model_path))
+    except Exception:
+        return None
+
+
+def detect_detector_norm(model, model_path: Path) -> str:
     """Infer the detector input normalization from the ONNX graph ("imagenet" / "div255").
 
     DINOv3 (ViT) based DEIMv2 models are trained with ImageNet mean/std normalization, while
     HGNetV2 based ones are trained with division by 255 only. The normalization is not embedded
     in the graph, so the model is treated as ViT based when a Conv fed directly by the input is a
-    patch embedding (stride 8 or more). If the graph cannot be read, the decision is based on
-    whether the file name contains "dinov3".
+    patch embedding (stride 8 or more). If the graph is not available (`model` is None), the
+    decision is based on whether the file name contains "dinov3".
     """
-    try:
-        import onnx  # noqa: PLC0415
-        graph = onnx.load(str(model_path), load_external_data=False).graph
-        input_name = graph.input[0].name
-        for node in graph.node:
-            if node.op_type == "Conv" and input_name in node.input:
-                strides = next((list(a.ints) for a in node.attribute
-                                if a.name == "strides"), [1, 1])
-                if max(strides) >= 8:
-                    return "imagenet"
-        return "div255"
-    except Exception:  # onnx not installed or load failed: decide by file name
+    if model is None:
         return "imagenet" if "dinov3" in model_path.name.lower() else "div255"
+    graph = model.graph
+    input_name = graph.input[0].name
+    for node in graph.node:
+        if node.op_type == "Conv" and input_name in node.input:
+            strides = next((list(a.ints) for a in node.attribute if a.name == "strides"), [1, 1])
+            if max(strides) >= 8:
+                return "imagenet"
+    return "div255"
+
+
+def _referenced_names(graph) -> set[str]:
+    """Tensor names read by the nodes of `graph`, including those inside control-flow subgraphs."""
+    names: set[str] = set()
+    for node in graph.node:
+        names.update(node.input)
+        for attr in node.attribute:
+            for sub in ([attr.g] if attr.HasField("g") else []) + list(attr.graphs):
+                names.update(_referenced_names(sub))
+    return names
+
+
+def prune_graph_to_outputs(model, output_names: Sequence[str]) -> int:
+    """Remove (in place) the nodes, initializers and value_info that do not feed `output_names`,
+    which must be existing graph outputs. Returns the number of removed nodes."""
+    graph = model.graph
+    missing = set(output_names) - {o.name for o in graph.output}
+    if missing:
+        raise ValueError(f"not graph outputs: {sorted(missing)}")
+    producer = {name: node for node in graph.node for name in node.output}
+    needed: set[int] = set()
+    stack = list(output_names)
+    while stack:
+        node = producer.get(stack.pop())
+        if node is None or id(node) in needed:
+            continue
+        needed.add(id(node))
+        stack.extend(node.input)
+        for attr in node.attribute:  # outer-scope tensors read inside If / Loop / Scan bodies
+            for sub in ([attr.g] if attr.HasField("g") else []) + list(attr.graphs):
+                stack.extend(_referenced_names(sub))
+    kept = [node for node in graph.node if id(node) in needed]
+    removed = len(graph.node) - len(kept)
+    if removed == 0:
+        return 0
+    del graph.node[:]
+    graph.node.extend(kept)
+    used = _referenced_names(graph) | set(output_names)
+    produced = {name for node in kept for name in node.output}
+    for field, keep in ((graph.initializer, lambda t: t.name in used),
+                        (graph.value_info, lambda v: v.name in used or v.name in produced),
+                        (graph.output, lambda o: o.name in output_names)):
+        items = [x for x in field if keep(x)]
+        del field[:]
+        field.extend(items)
+    return removed
+
+
+def prune_detector_model(model, model_path: Path) -> bytes | Path:
+    """Serialized detector graph reduced to the nodes that feed `label_xyxy_score`, or the file
+    path when nothing has to be removed (or the graph could not be loaded).
+
+    The DEIMv2 `*_boxes_only.onnx` files were derived from the instance-segmentation graphs by
+    deleting the `masks` output only: the mask branch (mask_embed_head / mask_feature_head →
+    NonZero → Gather → Einsum 'mc,mchw->mhw') is still in the graph and onnxruntime executes it on
+    every frame. The Einsum runs over the top-K rows of class 0 (body); on a frame without any
+    such row — e.g. a nearly black low-light frame — it receives zero-size tensors, which makes the
+    CUDA EP fail with CUBLAS_STATUS_INVALID_VALUE and the CPU EP crash with a segmentation fault.
+    Pruning removes the branch (and about 34 MB of its weights); label_xyxy_score is unchanged.
+    """
+    if model is None:
+        return model_path
+    try:
+        removed = prune_graph_to_outputs(model, [DETECTOR_OUTPUT])
+    except ValueError:  # the output is missing: let onnxruntime report it on the original file
+        return model_path
+    return model.SerializeToString() if removed else model_path
 
 
 class HeadDetector:
@@ -272,9 +353,11 @@ class HeadDetector:
 
     def __init__(self, model_path: Path, providers: list, score_threshold: float,
                  input_norm: str = "auto"):
-        self.input_norm = (detect_detector_norm(model_path) if input_norm == "auto"
+        model = load_onnx_model(model_path)
+        self.input_norm = (detect_detector_norm(model, model_path) if input_norm == "auto"
                            else input_norm)
-        self.session = make_session(model_path, providers)
+        self.session = make_session(prune_detector_model(model, model_path), providers)
+        del model
         self.providers = self.session.get_providers()
         self.score_threshold = score_threshold
         inp = self.session.get_inputs()[0]
@@ -301,7 +384,7 @@ class HeadDetector:
         if "orig_target_sizes" in self.input_names:
             feed["orig_target_sizes"] = np.array([[img_w, img_h]], dtype=np.float32)
         t0 = time.perf_counter()
-        (pred,) = self.session.run(["label_xyxy_score"], feed)
+        (pred,) = self.session.run([DETECTOR_OUTPUT], feed)
         self.last_inference_time = time.perf_counter() - t0
         pred = pred[0]  # [Q, 6]
         keep = (pred[:, 0].astype(np.int64) == HEAD_CLASS_ID) & (pred[:, 5] >= self.score_threshold)

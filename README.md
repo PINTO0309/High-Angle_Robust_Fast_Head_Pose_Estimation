@@ -25,6 +25,8 @@ Validation MAAE (mean absolute angular error, degrees, lower is better) of the c
 
 The weights and ONNX/TFLite files can be downloaded from the [weights](https://github.com/PINTO0309/High-Angle_Robust_Fast_Head_Pose_Estimation/releases/tag/weights) tag in the releases.
 
+This is a benchmark based on the SynthYawPitchPose dataset; it does not utilize any data—such as 300W-LP, AFLW200-3D, BIWI, or CMU-Panoptic—that is of extremely low quality.
+
 **Yaw / pitch body alone** (`<run>_kappa_*.onnx`, `hfhpe_dinov3_yawpitch_*.onnx` for the teacher; no roll, input assumed upright):
 
 | Body | Backbone | Input | Params<br>(M) | GMACs<br>GFLOPs | CPU<br>(ms) | MAAE<br>yaw | <br>pitch |

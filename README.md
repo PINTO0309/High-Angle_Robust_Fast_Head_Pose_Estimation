@@ -19,6 +19,12 @@ A training, distillation and ONNX deployment pipeline for **one-pass yaw / pitch
 
   https://github.com/user-attachments/assets/145bd7ce-e9a9-4e54-b5dc-90e9bc217bb1
 
+- ELP-USB500W05G-BL170 (Fisheye). Tested under brutal conditions: worst-case exposure, intense backlight, and a head size of around 20x20 pixels.
+
+  https://www.amazon.co.jp/dp/B01DEWOOUM
+
+  https://github.com/user-attachments/assets/297b3d26-586a-4162-b722-e306480f143f
+
 ## 1. Results at a glance
 
 Validation MAAE (mean absolute angular error, degrees, lower is better) of the current generation (all four bodies retrained). Params and GMACs are counted on the exported ONNX graphs (`scripts/count_macs_onnx.py`; GFLOPs = 2 × GMACs). CPU ms = average latency of the batch-1 graph on an i9-10900K with onnxruntime 1.22 CPU EP, measured with [sit4onnx](https://github.com/PINTO0309/sit4onnx).

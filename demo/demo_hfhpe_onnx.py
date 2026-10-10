@@ -749,9 +749,39 @@ def is_int(value: str) -> bool:
         return False
 
 
+def safe_fps(fps: float) -> float:
+    """Frame rate reported by the source, or 30 when the backend does not know it."""
+    return fps if fps and math.isfinite(fps) and fps > 0 else 30.0
+
+
 def create_video_writer(output_dir: Path, width: int, height: int, fps: float) -> cv2.VideoWriter:
-    safe_fps = fps if fps and math.isfinite(fps) and fps > 0 else 30.0
-    return cv2.VideoWriter(str(output_dir / "output.mp4"), cv2.VideoWriter.fourcc(*"mp4v"), safe_fps, (width, height))
+    return cv2.VideoWriter(str(output_dir / "output.mp4"), cv2.VideoWriter.fourcc(*"mp4v"), fps, (width, height))
+
+
+class RealTimePacer:
+    """How many file frames to write for a captured camera frame so that the constant-frame-rate
+    recording plays back in real time.
+
+    A webcam in low light extends its exposure time (auto exposure) and delivers far fewer frames
+    per second than its nominal CAP_PROP_FPS (e.g. 5 instead of 30), and the processing loop itself
+    may run slower than the camera. Writing one file frame per captured frame then gives a
+    fast-forwarded video. The pacer compares the wall-clock time of each captured frame with the
+    file clock: it repeats the frame when the camera falls behind and skips it when frames arrive
+    faster than the file rate.
+    """
+
+    def __init__(self, fps: float):
+        self.fps = fps
+        self.t_first: float | None = None
+        self.written = 0
+
+    def __call__(self, t: float) -> int:
+        if self.t_first is None:
+            self.t_first = t
+        due = int((t - self.t_first) * self.fps + 0.5) + 1  # frames the file should hold at time t
+        count = max(0, due - self.written)
+        self.written += count
+        return count
 
 
 def process_images(pipeline: Pipeline, images_dir: Path, output_dir: Path, save_raw: bool) -> None:
@@ -772,31 +802,41 @@ def process_images(pipeline: Pipeline, images_dir: Path, output_dir: Path, save_
 
 def process_video(pipeline: Pipeline, video: str, output_dir: Path, save_raw: bool,
                   disable_video_writer: bool, disable_imshow: bool) -> None:
-    cap = cv2.VideoCapture(int(video) if is_int(video) else video)
+    is_camera = is_int(video)
+    cap = cv2.VideoCapture(int(video) if is_camera else video)
     if not cap.isOpened():
         raise RuntimeError(f"Failed to open video source: {video}")
-    if is_int(video):  # camera input is fixed to VGA (640×480)
+    if is_camera:  # camera input is fixed to VGA (640×480)
         cap.set(cv2.CAP_PROP_FRAME_WIDTH, 640)
         cap.set(cv2.CAP_PROP_FRAME_HEIGHT, 480)
     print(f"Processing video source: {video}")
     if pipeline.yaw_smooth_tau > 0.0:
         pipeline.ring_smoother = YawSmoother(pipeline.yaw_smooth_tau)
     writer = None
+    pacer: RealTimePacer | None = None  # camera input: keep the recording in real time
     frame_index = 0
+    t_first = t_frame = 0.0
     try:
         while True:
             ok, frame = cap.read()
             if not ok:
                 break
+            t_frame = time.perf_counter()  # ≈ capture time of this frame
+            if frame_index == 0:
+                t_first = t_frame
             frame_index += 1
             rendered, results, infer_ms, total_ms = pipeline.run(frame)
             put_text(rendered, f"infer: {infer_ms:.2f} ms", (10, 30))
             put_text(rendered, f"total: {total_ms:.2f} ms", (10, 58))
             put_text(rendered, f"heads: {len(results)}", (10, 86))
             if writer is None and not disable_video_writer:
-                writer = create_video_writer(output_dir, rendered.shape[1], rendered.shape[0], cap.get(cv2.CAP_PROP_FPS))
+                fps = safe_fps(cap.get(cv2.CAP_PROP_FPS))
+                writer = create_video_writer(output_dir, rendered.shape[1], rendered.shape[0], fps)
+                if is_camera:
+                    pacer = RealTimePacer(fps)
             if writer is not None:
-                writer.write(rendered)
+                for _ in range(pacer(t_frame) if pacer is not None else 1):
+                    writer.write(rendered)
             if save_raw:
                 save_records(output_dir, f"{frame_index:08d}", results)
             if not disable_imshow:
@@ -818,6 +858,10 @@ def process_video(pipeline: Pipeline, video: str, output_dir: Path, save_raw: bo
             writer.release()
         if not disable_imshow:
             cv2.destroyAllWindows()
+        if pacer is not None and frame_index > 1:
+            elapsed = t_frame - t_first
+            print(f"Camera: {frame_index} frames captured in {elapsed:.1f} s ({(frame_index - 1) / elapsed:.1f} fps); "
+                  f"{pacer.written} frames written at {pacer.fps:g} fps ({pacer.written / pacer.fps:.1f} s)")
 
 
 def parse_args() -> argparse.Namespace:

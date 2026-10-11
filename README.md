@@ -20,6 +20,12 @@ A training, distillation and ONNX deployment pipeline for **one-pass yaw / pitch
 
   https://github.com/user-attachments/assets/145bd7ce-e9a9-4e54-b5dc-90e9bc217bb1
 
+- Comparison of behavior with implementations from previous papers.
+
+  |6DRepNet360<br>Contains non-commercial data contamination|HFHPE<br>No non-commercial data contamination|
+  |:-:|:-:|
+  |<img width="360" height="270" alt="image" src="https://github.com/user-attachments/assets/2f2ce544-6424-43fe-8a66-0d1e3337168e" />|<img width="360" height="270" alt="image" src="https://github.com/user-attachments/assets/c0094d29-4d6d-4fdf-ac05-00cd8d8ba62d" />|
+
 - ELP-USB500W05G-BL170 (Fisheye). Tested under brutal conditions: worst-case exposure, intense backlight, and a head size of around 20x20 pixels.
   - ELP cameras have very poor automatic exposure adjustment; consequently, if there are areas with high light levels in the scene, areas with low light levels become extremely dark.
   - The color quality isn't as good as that of the cheap USB camera I bought for $10 five years ago; the image has an overall yellowish tint.

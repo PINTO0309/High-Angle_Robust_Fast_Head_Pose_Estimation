@@ -82,6 +82,32 @@ This is a benchmark based on the SynthYawPitchPose dataset; it does not utilize 
 | [hfhpe_yawnet](https://github.com/PINTO0309/High-Angle_Robust_Fast_Head_Pose_Estimation/releases/download/weights/yawnet_distill_128_yp_unified_v10.tar.gz) | MBConv | 128x128 | 1.6 | 0.101<br>0.202 | 2.6 | 5.47 | 7.69 | [2.85](https://github.com/PINTO0309/High-Angle_Robust_Fast_Head_Pose_Estimation/releases/download/weights/hfhpe_roll_128_unified_kd_vitl_canvas3_w100.tar.gz) |
 | [hfhpe_yawnet](https://github.com/PINTO0309/High-Angle_Robust_Fast_Head_Pose_Estimation/releases/download/weights/yawnet_distill_064_yp_unified_v10.tar.gz) | MBConv | 64x64 | 1.5 | 0.026<br>0.051 | 1.4 | 5.64 | 7.55 | [3.29](https://github.com/PINTO0309/High-Angle_Robust_Fast_Head_Pose_Estimation/releases/download/weights/hfhpe_roll_064_unified_kd_vitl_canvas3_w100.tar.gz) |
 
+**Accuracy by pose bin (body-only graphs, validation set).** MAAE in degrees, each cell is `yaw / pitch`; the bins are the ground-truth |yaw| (frontal 0° to the back of the head 180°, left and right folded together) and the ground-truth pitch. The last row is the number of validation crops per bin (`scripts/eval_pose_bins.py`).
+
+| Model | \|yaw\|<br>0–30 | <br>30–60 | <br>60–90 | <br>90–120 | <br>120–150 | <br>150–180 |
+|---|--:|--:|--:|--:|--:|--:|
+| dinov3-320 | 0.26 / 0.28 | 0.28 / 0.21 | 0.27 / 0.21 | 0.26 / 0.21 | 0.33 / 0.25 | 0.28 / 0.22 |
+| vitt-128 | 0.56 / 0.55 | 0.57 / 0.44 | 0.56 / 0.48 | 0.44 / 0.45 | 0.60 / 0.55 | 0.52 / 0.47 |
+| vitt-064 | 0.81 / 0.79 | 0.79 / 0.58 | 0.79 / 0.64 | 0.67 / 0.64 | 0.88 / 0.77 | 0.78 / 0.68 |
+| hgnetv2-128 | 2.22 / 2.30 | 1.96 / 1.74 | 1.91 / 1.99 | 1.72 / 1.72 | 2.40 / 2.13 | 2.20 / 1.86 |
+| hgnetv2-064 | 2.57 / 2.40 | 2.43 / 1.79 | 2.41 / 2.19 | 2.21 / 1.88 | 2.91 / 2.27 | 2.94 / 2.04 |
+| yawnet-128 | 3.64 / 7.79 | 6.70 / 8.53 | 5.35 / 7.35 | 5.49 / 7.14 | 6.06 / 7.86 | 5.79 / 7.95 |
+| yawnet-064 | 3.78 / 7.33 | 6.98 / 7.94 | 5.44 / 7.42 | 5.49 / 6.96 | 6.23 / 7.88 | 6.29 / 7.90 |
+| n | 789 | 434 | 1036 | 909 | 1349 | 630 |
+
+| Model | pitch<br>−120..−90 | <br>−90..−60 | <br>−60..−30 | <br>−30..0 | <br>0..30 | <br>30..60 | <br>60..90 | <br>90..120 |
+|---|--:|--:|--:|--:|--:|--:|--:|--:|
+| dinov3-320 | 0.26 / 0.43 | 0.32 / 0.27 | 0.25 / 0.23 | 0.29 / 0.22 | 0.28 / 0.22 | 0.29 / 0.24 | 0.26 / 0.35 | 0.26 / 0.36 |
+| vitt-128 | 0.68 / 0.61 | 0.59 / 0.55 | 0.58 / 0.47 | 0.53 / 0.47 | 0.52 / 0.50 | 0.56 / 0.51 | 0.50 / 0.58 | 0.48 / 0.63 |
+| vitt-064 | 0.84 / 0.81 | 0.91 / 0.78 | 0.79 / 0.66 | 0.76 / 0.68 | 0.80 / 0.70 | 0.82 / 0.68 | 0.73 / 0.79 | 0.68 / 0.84 |
+| hgnetv2-128 | 2.46 / 2.73 | 2.19 / 1.84 | 2.07 / 1.80 | 2.02 / 1.98 | 2.16 / 2.02 | 1.92 / 2.06 | 2.47 / 2.76 | 2.28 / 2.47 |
+| hgnetv2-064 | 2.67 / 2.90 | 2.82 / 2.13 | 2.61 / 2.05 | 2.51 / 2.18 | 2.58 / 2.04 | 2.62 / 2.24 | 2.86 / 2.48 | 2.61 / 2.52 |
+| yawnet-128 | 7.87 / 10.66 | 5.88 / 8.35 | 5.68 / 8.29 | 5.33 / 7.19 | 5.45 / 6.43 | 5.36 / 9.87 | 5.14 / 10.54 | 3.47 / 9.76 |
+| yawnet-064 | 4.77 / 9.90 | 6.07 / 8.30 | 5.74 / 8.17 | 5.58 / 7.09 | 5.65 / 6.39 | 5.59 / 9.64 | 5.00 / 9.88 | 4.02 / 7.86 |
+| n | 36 | 456 | 889 | 1566 | 1471 | 537 | 129 | 63 |
+
+Observations: the ViT-based bodies are flat across the full yaw circle (side and back views cost nothing extra), and their pitch error grows only at the extreme bins beyond ±90°, which hold few samples. The MBConv student is clearly weaker outside the frontal bin for yaw and above 30° / below −30° for pitch, i.e. it is the capacity, not the pose coverage of the data, that limits the smallest model.
+
 **Style shift (body-only graphs, validation set, n=5,147):** The degradation set of HRFFA's Table 7, applied in crop pixels after the resize to the model input: mblur9 / mblur21 = linear motion blur of 9 / 21 px at 30°, warm / cool = channel gains (B,G,R = 0.8,1.0,1.2 and 1.2,1.0,0.8), gamma 0.6 / 1.6, gray, jpeg30 = JPEG quality 30. Because the degradations are applied at the input resolution their strength depends on it (a 21 px blur on a 64 px input corresponds to about 105 px at 320), so the 64 px rows are not comparable with the 128 / 320 px rows. In parentheses: change against clean (`scripts/eval_style_shift.py`).
 
 Yaw MAAE (degrees):
@@ -182,6 +208,8 @@ uv sync --frozen --no-group ort --group tensorrt   # alternative: onnxruntime-gp
 - Roll-adaptation crops (optional, `--extra-data` of the roll training): any directory of upright whole-head crops with a `manifest.jsonl` (`{"image": "images/<name>.jpg", ...}` per line). Real photo collections can be converted with the preprocessing tooling in `scripts/`; their pose labels are never used as training targets.
 
 ## 5. Training, evaluation and export
+
+### 5.1 Scripts
 
 ```bash
 # Teacher (DINOv3 ViT-L/16 @320, yaw+pitch, WSD, EMA; ~7 h / 90 epochs on a 96 GB GPU)
@@ -334,7 +362,7 @@ Training logs are written to `runs/<run>/train_log.jsonl` (validation metrics pe
 
 Both checkpoints also store the full argument list (dataset roots, teacher / initial-weight paths, hyperparameters) and, for distilled students, the teacher's path and metrics. Before sharing a checkpoint, run `scripts/sanitize_checkpoint.py runs/<run>` to write a copy under `runs/public/<run>/` that keeps only the weights and the keys the loaders need; `export_onnx.py --ckpt runs/public/<run>` then produces identically named ONNX files.
 
-### 5.1 Training-time augmentation
+### 5.2 Training-time augmentation
 
 All augmentation is applied on the fly in the datasets (`scripts/yaw_dataset.py`, `scripts/roll_dataset.py`) with the functions of `scripts/augment.py`; validation uses none of it (a plain INTER_LINEAR resize, or a fixed rotation for the roll branch). The training scripts keep the defaults below.
 
@@ -408,7 +436,8 @@ scripts/
   export_onnx.py export_hfhpe.py add_onnx_metadata.py count_macs_onnx.py
   sanitize_checkpoint.py       distribution copy of a checkpoint without the training-environment details
   # evaluation / previews
-  eval_*.py (eval_style_shift.py: the style-shift tables) val_preview.py render_preview.py render_hfhpe_preview.py
+  eval_*.py (eval_style_shift.py / eval_pose_bins.py: the style-shift and pose-bin tables)
+  val_preview.py render_preview.py render_hfhpe_preview.py
   render_roll_preview.py render_hfhpe_roll_preview.py plot_*.py
   render_hfhpe_axes_sheet.py render_hfhpe_axes_heatmap.py   3-axis sheet of nine rotated crops and the teacher's CLS attention on the same cells
   # label auditing (mirror fixes, screening, verification)

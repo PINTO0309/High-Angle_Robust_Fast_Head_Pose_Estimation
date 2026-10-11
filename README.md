@@ -56,7 +56,7 @@ This is a benchmark based on the SynthYawPitchPose dataset; it does not utilize 
 | Body | Backbone | Input | Params<br>(M) | GMACs<br>GFLOPs | CPU<br>(ms) | MAAE<br>yaw | <br>pitch |
 |---|---|--:|--:|--:|--:|--:|--:|
 | dinov3-320 | ViT-L/16 | 320x320 | 304.2 | 130.7<br>261.4 | 352 | 0.29 | 0.23 |
-| [vitt-128](https://github.com/PINTO0309/High-Angle_Robust_Fast_Head_Pose_Estimation/releases/download/weights/vitt_distill_128_yp_unified_v10.tar.gz) | ViT-T/16 | 128x128 | 5.6 | 0.374<br>0.748 | 3.3 | 0.72 | 0.64 |
+| [vitt-128](https://github.com/PINTO0309/High-Angle_Robust_Fast_Head_Pose_Estimation/releases/download/weights/vitt_distill_128_yp_unified_v11.tar.gz) | ViT-T/16 | 128x128 | 5.6 | 0.374<br>0.748 | 3.3 | 0.54 | 0.50 |
 | [vitt-064](https://github.com/PINTO0309/High-Angle_Robust_Fast_Head_Pose_Estimation/releases/download/weights/vitt_distill_064_yp_unified_v10.tar.gz) | ViT-T/16 | 64x64 | 5.6 | 0.094<br>0.188 | 1.8 | 0.80 | 0.70 |
 | [hgnetv2-128](https://github.com/PINTO0309/High-Angle_Robust_Fast_Head_Pose_Estimation/releases/download/weights/hgnetv2_distill_128_yp_unified_v10.tar.gz) | PP-HGNetV2-B0 | 128x128 | 1.9 | 0.156<br>0.312 | 1.4 | 2.09 | 1.99 |
 | [hgnetv2-064](https://github.com/PINTO0309/High-Angle_Robust_Fast_Head_Pose_Estimation/releases/download/weights/hgnetv2_distill_064_yp_unified_v10.tar.gz) | PP-HGNetV2-B0 | 64x64 | 1.9 | 0.039<br>0.078 | 0.7 | 2.60 | 2.13 |
@@ -68,7 +68,7 @@ This is a benchmark based on the SynthYawPitchPose dataset; it does not utilize 
 | Model | Backbone | Input | Params<br>(M) | GMACs<br>GFLOPs | CPU<br>(ms) | MAAE<br>yaw | <br>pitch | <br>roll |
 |---|---|--:|--:|--:|--:|--:|--:|--:|
 | hfhpe_dinov3 | ViT-L/16 | 320x320 | 305.1 | 130.7<br>261.5 | 354 | 0.29 | 0.23 | [2.85](https://github.com/PINTO0309/High-Angle_Robust_Fast_Head_Pose_Estimation/releases/download/weights/hfhpe_roll_128_unified_kd_vitl_canvas3_w100.tar.gz) |
-| [hfhpe_vitt](https://github.com/PINTO0309/High-Angle_Robust_Fast_Head_Pose_Estimation/releases/download/weights/vitt_distill_128_yp_unified_v10.tar.gz) | ViT-T/16 | 128x128 | 6.4 | 0.425<br>0.849 | 4.9 | 0.72 | 0.64 | [2.85](https://github.com/PINTO0309/High-Angle_Robust_Fast_Head_Pose_Estimation/releases/download/weights/hfhpe_roll_128_unified_kd_vitl_canvas3_w100.tar.gz) |
+| [hfhpe_vitt](https://github.com/PINTO0309/High-Angle_Robust_Fast_Head_Pose_Estimation/releases/download/weights/vitt_distill_128_yp_unified_v11.tar.gz) | ViT-T/16 | 128x128 | 6.4 | 0.425<br>0.849 | 4.9 | 0.54 | 0.50 | [2.85](https://github.com/PINTO0309/High-Angle_Robust_Fast_Head_Pose_Estimation/releases/download/weights/hfhpe_roll_128_unified_kd_vitl_canvas3_w100.tar.gz) |
 | [hfhpe_vitt](https://github.com/PINTO0309/High-Angle_Robust_Fast_Head_Pose_Estimation/releases/download/weights/vitt_distill_064_yp_unified_v10.tar.gz) | ViT-T/16 | 64x64 | 6.4 | 0.107<br>0.214 | 2.5 | 0.80 | 0.70 | [3.29](https://github.com/PINTO0309/High-Angle_Robust_Fast_Head_Pose_Estimation/releases/download/weights/hfhpe_roll_064_unified_kd_vitl_canvas3_w100.tar.gz) |
 | [hfhpe_hgnetv2](https://github.com/PINTO0309/High-Angle_Robust_Fast_Head_Pose_Estimation/releases/download/weights/hgnetv2_distill_128_yp_unified_v10.tar.gz) | PP-HGNetV2-B0 | 128x128 | 2.6 | 0.207<br>0.413 | 3.2 | 2.09 | 1.99 | [2.85](https://github.com/PINTO0309/High-Angle_Robust_Fast_Head_Pose_Estimation/releases/download/weights/hfhpe_roll_128_unified_kd_vitl_canvas3_w100.tar.gz) |
 | [hfhpe_hgnetv2](https://github.com/PINTO0309/High-Angle_Robust_Fast_Head_Pose_Estimation/releases/download/weights/hgnetv2_distill_064_yp_unified_v10.tar.gz) | PP-HGNetV2-B0 | 64x64 | 2.6 | 0.052<br>0.104 | 1.4 | 2.60 | 2.13 | [3.29](https://github.com/PINTO0309/High-Angle_Robust_Fast_Head_Pose_Estimation/releases/download/weights/hfhpe_roll_064_unified_kd_vitl_canvas3_w100.tar.gz) |
@@ -165,6 +165,8 @@ uv run python scripts/distill_yawnet.py \
 --vram 96 --lr-schedule wsd --epochs 75 --decay-epochs 20 --ema-decay 0.999 \
 --data data/yawpitchpose --tag v1
 ## ViT-T @128 (warm-started from the 64 px student; pairs with the 128 px roll branch)
+# two cycles: 150/100 from the 64 px student, then the same command again with
+# --epochs 300 and --init-student runs/vitt_distill_128_yp_unified_v1 (the first cycle)
 uv run python scripts/distill_yawnet.py \
 --teacher runs/dinov3_vitl16_320_yp_unified_teacher \
 --init-student runs/vitt_distill_064_yp_unified_v9 \

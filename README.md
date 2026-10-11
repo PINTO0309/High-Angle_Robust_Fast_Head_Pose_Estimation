@@ -456,6 +456,9 @@ ckpts/ models/ data/ runs/   weights, detector, datasets and training outputs (n
     |<img width="672" height="720" alt="val_preview_best" src="https://github.com/user-attachments/assets/947c747d-1792-4c64-9ac3-b594b9f20aa5" />|<img width="640" height="640" alt="preview_rotcrop" src="https://github.com/user-attachments/assets/39adf5f2-9f06-4cc8-b7a5-bc58a8a106ff" />|
 - The weights for the teacher model are distributed under the MIT License in the article below.
 - [506_HFHPE - Design of a Lightweight and Fast 6D Head Pose Estimation Model](https://note.com/pinto0309/n/n5be2ff7ec873?sub_rt=share_pw)
+- Technical explanation via video (Japanese audio, with subtitles.)
+
+  [![HFHPE Demo](https://github.com/user-attachments/assets/a0262aab-ec68-4a3d-aa54-b53cd96dcc7a)](https://www.youtube.com/watch?v=ICwa_ed6vIM)
 
 ## 9. License
 

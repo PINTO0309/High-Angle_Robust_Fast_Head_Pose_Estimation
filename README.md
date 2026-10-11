@@ -306,6 +306,39 @@ Training logs are written to `runs/<run>/train_log.jsonl` (validation metrics pe
 
 Both checkpoints also store the full argument list (dataset roots, teacher / initial-weight paths, hyperparameters) and, for distilled students, the teacher's path and metrics. Before sharing a checkpoint, run `scripts/sanitize_checkpoint.py runs/<run>` to write a copy under `runs/public/<run>/` that keeps only the weights and the keys the loaders need; `export_onnx.py --ckpt runs/public/<run>` then produces identically named ONNX files.
 
+### 5.1 Training-time augmentation
+
+All augmentation is applied on the fly in the datasets (`scripts/yaw_dataset.py`, `scripts/roll_dataset.py`) with the functions of `scripts/augment.py`; validation uses none of it (a plain INTER_LINEAR resize, or a fixed rotation for the roll branch). The training scripts keep the defaults below.
+
+**Yaw / pitch bodies (teacher and distilled students).** All geometric terms are composed into one 3×3 projective matrix and the crop is warped exactly once (INTER_LINEAR, replicated border), following the single-warp design of HRFFA. The input is the 5 % margin square head crop.
+
+| Augmentation | Probability | Range | Label update |
+|---|---|---|---|
+| Horizontal flip | 0.5 | — | yaw → −yaw (exact), pitch unchanged |
+| Scale | always | 0.85–1.10 | none |
+| Translation | always | ±5 % of the side (x and y) | none |
+| Small in-plane roll | 0.3 | ±8° | none (small-angle approximation) |
+| Camera-rotation homography (azimuth ψ and elevation φ together) | 0.3 | ψ ±10°, φ ±12°, focal ratio 1.2 | yaw += 0.166·ψ (measured coefficient), pitch += −0.166·φ (provisional, mirrored from the yaw measurement) |
+
+The degradations below leave the labels unchanged and run in this order after the warp:
+
+| Augmentation | Probability | Details |
+|---|---|---|
+| Low-resolution jitter | 0.35 | downscale to a random side of 20 px … original, then upscale back (surveillance-camera look) |
+| Brightness / contrast / gamma | 0.8 | gain 0.6–1.4, offset ±25, gamma 0.7–1.4 |
+| Grayscale | 0.2 | — |
+| Gaussian noise | 0.3 | σ 3–12 |
+| Gaussian blur | 0.3 | kernel 3 or 5 |
+| JPEG recompression | 0.3 | quality 35–84 |
+| Motion blur | 0.2 | length 1–6 % of the side, uniform direction |
+| Random erasing | 0.25 | 1–2 rectangles of 10–28 % of the side, filled with noise or the mean color (synthetic occlusion) |
+
+During distillation the whole chain is applied once at the teacher resolution (320 px); the student sees an INTER_LINEAR downscale of that same view, so teacher and student differ only in resolution and the label updates are shared.
+
+**Roll branch.** The in-plane rotation θ ~ U[0°, 360°) is the ground truth itself. It is composed with a horizontal flip (p = 0.5, applied before the rotation), a scale of 0.85–1.10 and a translation of ±5 % into a single affine warp; on the 1.8× canvases the central 1/1.8 is cut out after the rotation, so the corners are real pixels rather than replicated borders. The same degradations as above follow (low-resolution jitter 0.35, photometric chain, motion blur 0.2, random erasing 0.25). The camera-rotation homography and the small roll are not used here. When distilling from the ViT-L roll teacher the view is rendered at the teacher resolution and area-downscaled for the student.
+
+The pitch coefficient of the camera elevation (−0.166) is a mirrored assumption from the measured yaw coefficient and is marked as provisional in the code.
+
 ## 6. ONNX demo
 
 Two-stage inference demo (adapted from the [HRFFA](https://github.com/PINTO0309/High-Angle_Robust_Fast_FaceAlignment) demo; no face alignment or YawNet stage): DEIMv2-Wholebody49 head detection → integrated HFHPE ONNX on every head crop. It draws the head boxes, a 3-axis pose overlay per head (X = red right cheek, Y = green chin, Z = blue nose), the per-head yaw/pitch/roll text, and a top-right yaw ring for the largest head (0 = facing the camera, 90 = viewer's left).

@@ -82,6 +82,34 @@ This is a benchmark based on the SynthYawPitchPose dataset; it does not utilize 
 | [hfhpe_yawnet](https://github.com/PINTO0309/High-Angle_Robust_Fast_Head_Pose_Estimation/releases/download/weights/yawnet_distill_128_yp_unified_v10.tar.gz) | MBConv | 128x128 | 1.6 | 0.101<br>0.202 | 2.6 | 5.47 | 7.69 | [2.85](https://github.com/PINTO0309/High-Angle_Robust_Fast_Head_Pose_Estimation/releases/download/weights/hfhpe_roll_128_unified_kd_vitl_canvas3_w100.tar.gz) |
 | [hfhpe_yawnet](https://github.com/PINTO0309/High-Angle_Robust_Fast_Head_Pose_Estimation/releases/download/weights/yawnet_distill_064_yp_unified_v10.tar.gz) | MBConv | 64x64 | 1.5 | 0.026<br>0.051 | 1.4 | 5.64 | 7.55 | [3.29](https://github.com/PINTO0309/High-Angle_Robust_Fast_Head_Pose_Estimation/releases/download/weights/hfhpe_roll_064_unified_kd_vitl_canvas3_w100.tar.gz) |
 
+**Style shift (body-only graphs, validation set, n=5,147):** The degradation set of HRFFA's Table 7, applied in crop pixels after the resize to the model input: mblur9 / mblur21 = linear motion blur of 9 / 21 px at 30°, warm / cool = channel gains (B,G,R = 0.8,1.0,1.2 and 1.2,1.0,0.8), gamma 0.6 / 1.6, gray, jpeg30 = JPEG quality 30. Because the degradations are applied at the input resolution their strength depends on it (a 21 px blur on a 64 px input corresponds to about 105 px at 320), so the 64 px rows are not comparable with the 128 / 320 px rows. In parentheses: change against clean (`scripts/eval_style_shift.py`).
+
+Yaw MAAE (degrees):
+
+| Model | clean | mblur9 | mblur21 | warm | cool | gamma0.6 | gamma1.6 | gray | jpeg30 |
+|---|--:|--:|--:|--:|--:|--:|--:|--:|--:|
+| dinov3-320 | 0.28 | 0.29 (+3.3%) | 0.40 (+42.2%) | 0.32 (+12.4%) | 0.32 (+14.1%) | 0.29 (+2.8%) | 0.29 (+1.8%) | 0.31 (+9.2%) | 0.30 (+6.6%) |
+| vitt-128 | 0.54 | 0.62 (+14.7%) | 4.94 (+809.0%) | 0.81 (+48.5%) | 0.91 (+66.6%) | 0.63 (+16.1%) | 0.63 (+16.8%) | 0.67 (+22.9%) | 0.62 (+14.7%) |
+| vitt-064 | 0.79 | 2.17 (+173.3%) | 26.88 (+3281.7%) | 1.17 (+46.7%) | 1.32 (+66.2%) | 0.94 (+18.2%) | 0.93 (+16.8%) | 1.02 (+28.2%) | 1.19 (+49.7%) |
+| hgnetv2-128 | 2.09 | 3.00 (+43.4%) | 10.40 (+397.2%) | 2.87 (+37.4%) | 3.31 (+58.1%) | 2.38 (+14.0%) | 2.29 (+9.4%) | 2.63 (+25.8%) | 2.57 (+22.7%) |
+| hgnetv2-064 | 2.60 | 6.10 (+134.8%) | 37.48 (+1342.0%) | 3.37 (+29.8%) | 3.90 (+50.1%) | 2.90 (+11.5%) | 2.80 (+7.7%) | 3.24 (+24.7%) | 3.77 (+45.1%) |
+| yawnet-128 | 5.47 | 5.90 (+7.9%) | 16.50 (+202.0%) | 5.63 (+2.9%) | 5.87 (+7.4%) | 5.52 (+1.0%) | 5.52 (+1.1%) | 5.79 (+5.9%) | 5.74 (+5.0%) |
+| yawnet-064 | 5.63 | 7.11 (+26.2%) | 48.61 (+762.8%) | 5.81 (+3.1%) | 6.11 (+8.4%) | 5.70 (+1.1%) | 5.73 (+1.7%) | 6.04 (+7.2%) | 6.22 (+10.4%) |
+
+Pitch MAAE (degrees):
+
+| Model | clean | mblur9 | mblur21 | warm | cool | gamma0.6 | gamma1.6 | gray | jpeg30 |
+|---|--:|--:|--:|--:|--:|--:|--:|--:|--:|
+| dinov3-320 | 0.23 | 0.24 (+3.6%) | 0.31 (+32.9%) | 0.28 (+18.1%) | 0.28 (+18.7%) | 0.24 (+3.4%) | 0.24 (+2.2%) | 0.26 (+10.9%) | 0.25 (+7.0%) |
+| vitt-128 | 0.50 | 0.59 (+17.8%) | 4.52 (+809.0%) | 0.81 (+62.3%) | 0.88 (+77.0%) | 0.58 (+15.8%) | 0.58 (+17.0%) | 0.62 (+24.9%) | 0.58 (+15.8%) |
+| vitt-064 | 0.70 | 2.01 (+188.2%) | 21.98 (+3053.9%) | 1.12 (+60.2%) | 1.31 (+88.0%) | 0.81 (+16.8%) | 0.82 (+18.2%) | 0.88 (+26.0%) | 1.03 (+47.6%) |
+| hgnetv2-128 | 1.99 | 2.97 (+49.4%) | 10.33 (+419.1%) | 3.10 (+56.0%) | 3.81 (+91.6%) | 2.33 (+17.2%) | 2.23 (+12.1%) | 2.63 (+32.2%) | 2.56 (+28.8%) |
+| hgnetv2-064 | 2.13 | 5.40 (+152.8%) | 28.15 (+1218.4%) | 3.34 (+56.6%) | 3.89 (+82.2%) | 2.47 (+15.5%) | 2.37 (+10.8%) | 2.75 (+28.8%) | 3.26 (+52.6%) |
+| yawnet-128 | 7.69 | 7.81 (+1.6%) | 15.67 (+103.8%) | 7.88 (+2.6%) | 8.11 (+5.5%) | 7.75 (+0.8%) | 7.72 (+0.4%) | 7.80 (+1.5%) | 7.82 (+1.7%) |
+| yawnet-064 | 7.55 | 8.24 (+9.1%) | 40.34 (+434.5%) | 7.83 (+3.8%) | 7.92 (+4.9%) | 7.62 (+0.9%) | 7.63 (+1.1%) | 7.72 (+2.3%) | 7.84 (+3.8%) |
+
+Observations: motion blur is the main weakness; on a 64 px input the 21 px blur spans a third of the crop, hence the extreme rows (as noted above, the degradations are applied in input pixels, so the 64 px rows are not comparable with the 128 / 320 px rows). The color-temperature shifts (warm / cool) cost the ViT-T and PP-HGNetV2 students 40–90 %, while the MBConv student moves by only a few percent; models with small absolute errors naturally show larger relative changes. Gamma, grayscale and JPEG recompression are comparatively mild for every model.
+
 **How to read these numbers (important):** the models are trained with `--unified` (train + validation merged on purpose), so the yaw/pitch values above measure how well each model fits the training distribution and **must not be compared with published benchmark results**. They are selection metrics, useful for comparing the rows against each other. The yaw/pitch columns are the same in both tables because the roll branch does not change the body; the integrated table adds the roll estimate, the derotation and their cost. The roll column is the roll branch — a YawNet w1.0 (0.77M) distilled online from a DINOv3 ViT-L/16 roll teacher trained at 320×320, run at 64×64 for the 64 px students and at 128×128 for hfhpe_dinov3 and the 128 px hfhpe_vitt / hfhpe_hgnetv2 / hfhpe_yawnet — evaluated on **wedge-free canvas rotations** of the validation crops, an honest protocol in which the four corners are filled with real context pixels instead of border replication.
 
 ## 2. Features
@@ -380,7 +408,7 @@ scripts/
   export_onnx.py export_hfhpe.py add_onnx_metadata.py count_macs_onnx.py
   sanitize_checkpoint.py       distribution copy of a checkpoint without the training-environment details
   # evaluation / previews
-  eval_*.py val_preview.py render_preview.py render_hfhpe_preview.py
+  eval_*.py (eval_style_shift.py: the style-shift tables) val_preview.py render_preview.py render_hfhpe_preview.py
   render_roll_preview.py render_hfhpe_roll_preview.py plot_*.py
   render_hfhpe_axes_sheet.py render_hfhpe_axes_heatmap.py   3-axis sheet of nine rotated crops and the teacher's CLS attention on the same cells
   # label auditing (mirror fixes, screening, verification)

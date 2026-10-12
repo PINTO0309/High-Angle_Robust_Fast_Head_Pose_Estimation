@@ -460,6 +460,10 @@ ckpts/ models/ data/ runs/   weights, detector, datasets and training outputs (n
 
   [![HFHPE Demo](https://github.com/user-attachments/assets/a0262aab-ec68-4a3d-aa54-b53cd96dcc7a)](https://www.youtube.com/watch?v=ICwa_ed6vIM)
 
+- Technical explanation via video (English audio)
+
+  [![HFHPE Demo](https://github.com/user-attachments/assets/c1507f17-803c-4fd4-a34b-f1a8cb807b2d)](https://youtu.be/HAuE1da14vk)
+
 ## 9. License
 
 - Code: [MIT License](LICENSE) (Copyright (c) 2026 Katsuya Hyodo).

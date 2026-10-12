@@ -458,7 +458,7 @@ ckpts/ models/ data/ runs/   weights, detector, datasets and training outputs (n
 - [506_HFHPE - Design of a Lightweight and Fast 6D Head Pose Estimation Model](https://note.com/pinto0309/n/n5be2ff7ec873?sub_rt=share_pw)
 - Technical explanation via video (Japanese audio, with subtitles.)
 
-  [![HFHPE Demo](https://github.com/user-attachments/assets/a0262aab-ec68-4a3d-aa54-b53cd96dcc7a)](https://www.youtube.com/watch?v=ICwa_ed6vIM)
+  [![HFHPE Demo](https://github.com/user-attachments/assets/a0262aab-ec68-4a3d-aa54-b53cd96dcc7a)](https://youtu.be/ICwa_ed6vIM)
 
 - Technical explanation via video (English audio)
 

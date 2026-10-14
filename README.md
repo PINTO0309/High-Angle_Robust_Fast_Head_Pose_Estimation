@@ -40,7 +40,7 @@ A training, distillation and ONNX deployment pipeline for **one-pass yaw / pitch
 
 - VGA USB cam + Exposure time: 205 ms. The pitch is becoming quite unstable. It appears necessary to strengthen the brightness augmentation applied to the training data.
 
-  https://github.com/user-attachments/assets/e3c42c74-5f44-42c2-85a5-95729040c338
+  https://github.com/user-attachments/assets/a3bf13a4-7349-461f-b2c4-e293b309d3ea
 
   |Actual brightness|Exposure time: 205 ms|
   |:-:|:-:|

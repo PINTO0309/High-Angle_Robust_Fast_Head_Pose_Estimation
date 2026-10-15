@@ -24,14 +24,21 @@ swapped via command-line arguments (the Face Alignment / YawNet stages are not u
 Only predictions are drawn: head bbox (green), the 3 axes at the head center (X=red right cheek /
 Y=green chin / Z=blue nose tip), the angle text above the bbox, and a yaw ring for the largest
 head in the top-right corner (0 = down = facing the camera, 90 = left).
+With --detect_all_classes, boxes for non-attribute detector classes above --head_score_threshold
+are drawn, except face, eyes, nose, mouth and ears to keep the pose axes clear. Pose estimation still
+runs only on class 7 (head).
 
 Usage (default models):
   python demo/demo_hfhpe_onnx.py -i images_dir -o output_dir
   python demo/demo_hfhpe_onnx.py -v 0 -o output_dir               # camera 0
   python demo/demo_hfhpe_onnx.py -v input.mp4 -o output_dir -d cuda
+  python demo/demo_hfhpe_onnx.py -v 0 -o output_dir --detector_device cuda --pose_device tensorrt
   python demo/demo_hfhpe_onnx.py -pm models/hfhpe_hgnetv2_Nx3x64x64.onnx -i images -o out
 
-Keys (video / camera): ESC = quit, b = toggle the head bboxes, a = toggle the 3 axes,
+Execution providers are selected independently: --detector_device defaults to cuda;
+--pose_device (also -d / --device) defaults to cuda if available, otherwise cpu.
+
+Keys (video / camera): ESC = quit, b = toggle the bboxes, a = toggle the 3 axes,
 t = toggle the angle text, r = toggle the yaw ring.
 """
 
@@ -59,22 +66,53 @@ DEFAULT_POSE = "models/hfhpe_vitt_1x3x64x64.onnx"
 
 IMAGE_EXTENSIONS = {".jpg", ".jpeg", ".png", ".bmp", ".webp"}
 HEAD_CLASS_ID = 7
-DRAW_COLOR = (0, 255, 0)  # BGR. bbox, ring sector and text
+# Attribute subclasses share their parent class's box and are not rendered separately.
+# https://github.com/PINTO0309/PINTO_model_zoo/tree/main/488_DEIMv2-Wholebody49#2-annotation
+ATTRIBUTE_CLASS_IDS = frozenset({
+    1, 2,                      # age
+    3, 4,                      # gender
+    8, 9, 10, 11, 12, 13, 14, 15,  # head direction
+    23, 24,                    # shoulder left/right
+    27, 28,                    # elbow left/right
+    30, 31,                    # wrist left/right
+    33, 34,                    # hand left/right
+    37, 38,                    # hip left/right
+    40, 41,                    # knee left/right
+    43, 44,                    # ankle left/right
+    46, 47,                    # foot left/right
+})
+# Hide face and facial-part boxes as well so they do not obscure the head-pose axes.
+HIDDEN_BBOX_CLASS_IDS = ATTRIBUTE_CLASS_IDS | {16, 17, 18, 19, 20}  # face, eye, nose, mouth, ear
+DRAW_COLOR = (0, 255, 0)  # BGR. head bbox, ring sector and text
 RING_COLOR = (230, 230, 230)  # ring ticks (UI element)
+# Bright BGR colors for non-head classes; reserve green for heads.
+OTHER_CLASS_COLORS = (
+    (0, 165, 255),    # orange
+    (255, 200, 0),    # sky blue
+    (255, 80, 220),   # magenta
+    (0, 230, 255),    # yellow
+    (255, 130, 80),   # cornflower blue
+    (180, 100, 255),  # pink
+    (80, 100, 255),   # coral
+    (255, 180, 180),  # lavender
+    (180, 220, 255),  # peach
+    (255, 255, 80),   # cyan
+)
 
 
 @dataclass
-class HeadBox:
+class DetectionBox:
     x1: float
     y1: float
     x2: float
     y2: float
     score: float
+    class_id: int = HEAD_CLASS_ID
 
 
 @dataclass
 class HeadResult:
-    box: HeadBox
+    box: DetectionBox
     yaw_deg: float               # 0 = facing the camera, +90 = viewer's left (mod 360)
     pitch_deg: float             # positive = looking up (signed)
     roll_deg: float | None       # positive = image-CCW (signed). None for yaw/pitch-only graphs
@@ -352,7 +390,7 @@ class HeadDetector:
     IMAGENET_STD = np.array([0.229, 0.224, 0.225], dtype=np.float32).reshape(1, 3, 1, 1)
 
     def __init__(self, model_path: Path, providers: list, score_threshold: float,
-                 input_norm: str = "auto"):
+                 input_norm: str = "auto", detect_all_classes: bool = False):
         model = load_onnx_model(model_path)
         self.input_norm = (detect_detector_norm(model, model_path) if input_norm == "auto"
                            else input_norm)
@@ -360,6 +398,7 @@ class HeadDetector:
         del model
         self.providers = self.session.get_providers()
         self.score_threshold = score_threshold
+        self.detect_all_classes = detect_all_classes
         inp = self.session.get_inputs()[0]
         self.input_name = inp.name
         shape = inp.shape
@@ -378,7 +417,7 @@ class HeadDetector:
             x = (x - self.IMAGENET_MEAN) / self.IMAGENET_STD
         return x
 
-    def __call__(self, image_bgr: np.ndarray) -> list[HeadBox]:
+    def __call__(self, image_bgr: np.ndarray) -> list[DetectionBox]:
         img_h, img_w = image_bgr.shape[:2]
         feed = {self.input_name: self.preprocess(image_bgr)}
         if "orig_target_sizes" in self.input_names:
@@ -387,9 +426,11 @@ class HeadDetector:
         (pred,) = self.session.run([DETECTOR_OUTPUT], feed)
         self.last_inference_time = time.perf_counter() - t0
         pred = pred[0]  # [Q, 6]
-        keep = (pred[:, 0].astype(np.int64) == HEAD_CLASS_ID) & (pred[:, 5] >= self.score_threshold)
-        heads: list[HeadBox] = []
-        for _, x1, y1, x2, y2, score in pred[keep]:
+        keep = pred[:, 5] >= self.score_threshold
+        if not self.detect_all_classes:
+            keep &= pred[:, 0].astype(np.int64) == HEAD_CLASS_ID
+        boxes: list[DetectionBox] = []
+        for class_id, x1, y1, x2, y2, score in pred[keep]:
             if "orig_target_sizes" not in self.input_names:  # normalized coordinates → pixels
                 x1, x2 = x1 * img_w, x2 * img_w
                 y1, y2 = y1 * img_h, y2 * img_h
@@ -397,15 +438,15 @@ class HeadDetector:
             y1, y2 = float(np.clip(y1, 0, img_h - 1)), float(np.clip(y2, 0, img_h - 1))
             if x2 - x1 < 2 or y2 - y1 < 2:
                 continue
-            heads.append(HeadBox(x1, y1, x2, y2, float(score)))
-        heads.sort(key=lambda b: -b.score)
-        return heads
+            boxes.append(DetectionBox(x1, y1, x2, y2, float(score), int(class_id)))
+        boxes.sort(key=lambda b: -b.score)
+        return boxes
 
 
 # ---------------------------------------------------------------------------
 # Stage 2: HFHPE (yaw/pitch/roll of the head crops)
 # ---------------------------------------------------------------------------
-def square_crop(image: np.ndarray, box: HeadBox, margin: float) -> np.ndarray:
+def square_crop(image: np.ndarray, box: DetectionBox, margin: float) -> np.ndarray:
     """Crop contract (shared by training, evaluation and deployment): expand each side by margin
     → long-side square → clamp at the image border. If the image is smaller than the square,
     zero-pad it to a square."""
@@ -472,7 +513,7 @@ class HeadPoseEstimator:
         self.last_inference_time = 0.0
         self._nonfinite_warned = False
 
-    def preprocess(self, image_bgr: np.ndarray, box: HeadBox) -> np.ndarray:
+    def preprocess(self, image_bgr: np.ndarray, box: DetectionBox) -> np.ndarray:
         crop = resize_square(square_crop(image_bgr, box, self.crop_margin), self.size)
         rgb = cv2.cvtColor(crop, cv2.COLOR_BGR2RGB).astype(np.float32)
         if self.input_norm == "imagenet":
@@ -483,7 +524,7 @@ class HeadPoseEstimator:
         outs = self.session.run(self.output_names, {self.input_name: batch})
         return outs[0], (outs[1] if self.has_kappa else None)
 
-    def __call__(self, image_bgr: np.ndarray, heads: Sequence[HeadBox]) -> list[HeadResult]:
+    def __call__(self, image_bgr: np.ndarray, heads: Sequence[DetectionBox]) -> list[HeadResult]:
         if not heads:
             self.last_inference_time = 0.0
             return []
@@ -552,14 +593,26 @@ def draw_axis(img: np.ndarray, yaw: float, pitch: float, roll: float,
 
 
 def draw_results(image: np.ndarray, results: Sequence[HeadResult], draw_bbox: bool,
-                 draw_axes: bool, draw_text: bool) -> np.ndarray:
+                 draw_axes: bool, draw_text: bool,
+                 boxes: Sequence[DetectionBox] | None = None) -> np.ndarray:
     out = image.copy()
+    if draw_bbox:
+        for box in boxes if boxes is not None else [r.box for r in results]:
+            if box.class_id in HIDDEN_BBOX_CLASS_IDS:
+                continue
+            side = max(box.x2 - box.x1, box.y2 - box.y1)
+            thickness = max(1, int(round(side / 160.0)))
+            p1 = (int(round(box.x1)), int(round(box.y1)))
+            p2 = (int(round(box.x2)), int(round(box.y2)))
+            color = DRAW_COLOR
+            if box.class_id != HEAD_CLASS_ID:
+                color = OTHER_CLASS_COLORS[box.class_id % len(OTHER_CLASS_COLORS)]
+                # A dark outline keeps the bright colors visible on light backgrounds.
+                cv2.rectangle(out, p1, p2, (0, 0, 0), thickness + 2, cv2.LINE_AA)
+            cv2.rectangle(out, p1, p2, color, thickness, cv2.LINE_AA)
     for r in results:
         side = max(r.box.x2 - r.box.x1, r.box.y2 - r.box.y1)
         thickness = max(1, int(round(side / 160.0)))
-        if draw_bbox:
-            cv2.rectangle(out, (int(round(r.box.x1)), int(round(r.box.y1))),
-                          (int(round(r.box.x2)), int(round(r.box.y2))), DRAW_COLOR, thickness, cv2.LINE_AA)
         if draw_axes:
             cx = int(round((r.box.x1 + r.box.x2) / 2.0))
             cy = int(round((r.box.y1 + r.box.y2) / 2.0))
@@ -585,7 +638,7 @@ def _yaw_vector(deg: float) -> tuple[float, float]:
     return -math.sin(rad), math.cos(rad)
 
 
-def _box_iou(a: HeadBox, b: HeadBox) -> float:
+def _box_iou(a: DetectionBox, b: DetectionBox) -> float:
     ix = max(0.0, min(a.x2, b.x2) - max(a.x1, b.x1))
     iy = max(0.0, min(a.y2, b.y2) - max(a.y1, b.y1))
     inter = ix * iy
@@ -605,10 +658,10 @@ class YawSmoother:
     def __init__(self, tau: float):
         self.tau = tau
         self.vec: np.ndarray | None = None
-        self.box: HeadBox | None = None
+        self.box: DetectionBox | None = None
         self.t: float | None = None
 
-    def update(self, box: HeadBox, deg: float) -> float:
+    def update(self, box: DetectionBox, deg: float) -> float:
         now = time.perf_counter()
         v = np.array([np.cos(np.radians(deg)), np.sin(np.radians(deg))], dtype=np.float64)
         if self.vec is None or self.box is None or self.t is None or _box_iou(self.box, box) < 0.3:
@@ -697,14 +750,17 @@ class Pipeline:
         set_ort_log_level(args.ort_log_level)
         det_path, pose_path = Path(args.detector_model), Path(args.pose_model)
         self.trt: TrtSettings | None = None
-        if (args.device or "").lower() == "tensorrt":
+        if any((device or "").lower() == "tensorrt"
+               for device in (args.detector_device, args.pose_device)):
             self.trt = prepare_trt_cache(Path(args.trt_cache_dir), resolve_trt_precision(args.inference_type))
             print(f"TensorRT: precision {self.trt.precision} (onnxruntime {self.trt.ort_version}, TensorRT {self.trt.trt_version}, "
                   f"sm{self.trt.compute_capability}), engine cache {self.trt.cache_dir}")
-        providers = build_providers(args.device, self.trt)
-        self.detector = HeadDetector(det_path, providers, args.head_score_threshold,
-                                     args.detector_norm)
-        self.estimator = HeadPoseEstimator(pose_path, providers, args.crop_margin)
+        detector_providers = build_providers(args.detector_device, self.trt)
+        pose_providers = build_providers(args.pose_device, self.trt)
+        self.detect_all_classes = args.detect_all_classes
+        self.detector = HeadDetector(det_path, detector_providers, args.head_score_threshold,
+                                     args.detector_norm, detect_all_classes=self.detect_all_classes)
+        self.estimator = HeadPoseEstimator(pose_path, pose_providers, args.crop_margin)
         self.draw_bbox = not args.disable_bbox
         self.draw_axes = not args.disable_axes
         self.draw_text = not args.disable_angle_text
@@ -719,14 +775,16 @@ class Pipeline:
         h, w = self.detector.input_hw
         self.detector(np.zeros((h, w, 3), dtype=np.uint8))
         s = self.estimator.size
-        self.estimator(np.zeros((s, s, 3), dtype=np.uint8), [HeadBox(0.0, 0.0, float(s - 1), float(s - 1), 1.0)])
+        self.estimator(np.zeros((s, s, 3), dtype=np.uint8), [DetectionBox(0.0, 0.0, float(s - 1), float(s - 1), 1.0)])
 
     def run(self, image: np.ndarray) -> tuple[np.ndarray, list[HeadResult], float, float]:
         t0 = time.perf_counter()
-        heads = self.detector(image)
+        boxes = self.detector(image)
+        heads = [box for box in boxes if box.class_id == HEAD_CLASS_ID]
         results = self.estimator(image, heads)
         infer_ms = (self.detector.last_inference_time + self.estimator.last_inference_time) * 1000.0
-        rendered = draw_results(image, results, self.draw_bbox, self.draw_axes, self.draw_text)
+        rendered = draw_results(image, results, self.draw_bbox, self.draw_axes, self.draw_text,
+                                boxes=boxes if self.detect_all_classes else None)
         if self.draw_ring and results:
             ring_deg = None
             if self.ring_smoother is not None:
@@ -875,7 +933,11 @@ def parse_args() -> argparse.Namespace:
     src.add_argument("-i", "--images_dir", type=str, help="directory of input images")
     src.add_argument("-v", "--video", type=str, help="video file path or camera index")
     ap.add_argument("-o", "--output_dir", type=str, default="output")
-    ap.add_argument("-d", "--device", type=str, default=None, help="cpu, cuda, cuda:0 or tensorrt (default: cuda if available)")
+    ap.add_argument("--detector_device", type=str, default="cuda",
+                    help="detector execution provider: cpu, cuda, cuda:0 or tensorrt (default: cuda)")
+    ap.add_argument("-d", "--device", "--pose_device", dest="pose_device", type=str, default=None,
+                    help="pose execution provider only: cpu, cuda, cuda:0 or tensorrt "
+                         "(default: cuda if available, otherwise cpu)")
     ap.add_argument("--inference_type", type=str, choices=["auto", "fp16", "bf16", "int8"], default="auto",
                     help="TensorRT precision; auto = bf16 with onnxruntime-gpu >= 1.25 on Ampere or newer GPUs, otherwise fp16")
     ap.add_argument("--ort_log_level", type=str, choices=list(_ORT_LOG_LEVELS), default="error",
@@ -889,12 +951,18 @@ def parse_args() -> argparse.Namespace:
                          "detectors and plain /255 for HGNetV2-based ones (detected from the graph). "
                          "The training crops were built with div255; pass it to reproduce them exactly")
     ap.add_argument("--head_score_threshold", type=float, default=0.35,
-                    help="head detection score threshold (the training crops were built with 0.30)")
+                    help="detection score threshold; applies to all classes with --detect_all_classes "
+                         "(the training crops were built with 0.30)")
+    ap.add_argument("--detect_all_classes", action="store_true",
+                    help="draw boxes for all non-attribute detector classes above --head_score_threshold "
+                         "except face, eyes, nose, mouth and ears (age, gender, head direction and left/right "
+                         "subclasses are also hidden); "
+                         "pose estimation still runs only on heads")
     ap.add_argument("--crop_margin", type=float, default=0.05,
                     help="head-bbox expansion ratio per side of the square crop (crop-contract value: 0.05)")
     ap.add_argument("--yaw_smooth_tau", type=float, default=0.0,
                     help="circular-EMA time constant in seconds for the yaw ring on video / camera input (display only; default 0 = no smoothing, e.g. 0.15 to enable)")
-    ap.add_argument("--disable_bbox", action="store_true", help="do not draw head boxes")
+    ap.add_argument("--disable_bbox", action="store_true", help="do not draw bounding boxes (including --detect_all_classes)")
     ap.add_argument("--disable_axes", action="store_true", help="do not draw the 3-axis pose overlay (X=red right cheek, Y=green chin, Z=blue nose)")
     ap.add_argument("--disable_angle_text", action="store_true", help="do not draw the per-head yaw/pitch/roll text")
     ap.add_argument("--disable_yaw_ring", action="store_true", help="do not draw the top-right yaw ring (the angles are still estimated and written to the JSON)")

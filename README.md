@@ -401,24 +401,79 @@ Two-stage inference demo (adapted from the [HRFFA](https://github.com/PINTO0309/
 
 ```bash
 # images
-uv run python demo/demo_hfhpe_onnx.py -i images_dir -o output_dir
+uv run python demo/demo_hfhpe_onnx.py \
+-i images_dir \
+-o output_dir
+
 # video file / camera 0
-uv run python demo/demo_hfhpe_onnx.py -v input.mp4 -o output_dir
-uv run python demo/demo_hfhpe_onnx.py -v 0 -o output_dir
-uv run python demo/demo_hfhpe_onnx.py -pm models/hfhpe_vitt_1x3x64x64.onnx -v 0 -o output_dir --head_score_threshold 0.35
-# TensorRT EP (engine cache under models/trt_cache)
-uv run --no-group ort --group tensorrt python demo/demo_hfhpe_onnx.py -v 0 -o output_dir -d tensorrt --head_score_threshold 0.70
+uv run python demo/demo_hfhpe_onnx.py \
+-v input.mp4 \
+-o output_dir
+
+uv run python demo/demo_hfhpe_onnx.py \
+-v 0 \
+-o output_dir
+
+uv run python demo/demo_hfhpe_onnx.py \
+-pm models/hfhpe_vitt_1x3x64x64.onnx \
+-v 0 \
+-o output_dir \
+--head_score_threshold 0.35
+
+# CUDA detector (default) + TensorRT pose EP (engine cache under models/trt_cache)
+uv run --no-group ort --group tensorrt python demo/demo_hfhpe_onnx.py \
+-v 0 \
+-o output_dir \
+-d tensorrt \
+--head_score_threshold 0.35
+
+# select both EPs explicitly
+uv run --no-group ort --group tensorrt python demo/demo_hfhpe_onnx.py \
+-v 0 \
+-o output_dir \
+--detector_device cuda \
+--pose_device tensorrt
+
+# CPU for both stages
+uv run python demo/demo_hfhpe_onnx.py \
+-v 0 \
+-o output_dir \
+--detector_device cpu \
+--pose_device cpu
+
+# draw bounding boxes for all non-attribute classes (pose estimation remains head-only)
+uv run python demo/demo_hfhpe_onnx.py \
+-v 0 \
+-o output_dir \
+--detect_all_classes \
+--head_score_threshold 0.35
+
 # swap the pose model
-uv run python demo/demo_hfhpe_onnx.py -pm models/hfhpe_hgnetv2_Nx3x64x64.onnx -v 0 -o output_dir
+uv run python demo/demo_hfhpe_onnx.py \
+-pm models/hfhpe_hgnetv2_Nx3x64x64.onnx \
+-v 0 \
+-o output_dir
+
 # N-batch graph of the default model (all heads of a frame in one pass)
-uv run python demo/demo_hfhpe_onnx.py -pm models/hfhpe_vitt_rollgate_Nx3x64x64.onnx -v 0 -o output_dir
+uv run python demo/demo_hfhpe_onnx.py \
+-pm models/hfhpe_vitt_rollgate_Nx3x64x64.onnx \
+-v 0 \
+-o output_dir
+
 # without the kappa gate (same I/O; always derotates by the estimated roll)
-uv run python demo/demo_hfhpe_onnx.py -pm models/hfhpe_vitt_Nx3x64x64.onnx -v 0 -o output_dir
+uv run python demo/demo_hfhpe_onnx.py \
+-pm models/hfhpe_vitt_Nx3x64x64.onnx \
+-v 0 \
+-o output_dir
 ```
 
 Defaults: detector `models/deimv2_dinov3_s_wholebody49_boxes_only.onnx`, pose `models/hfhpe_vitt_rollgate_1x3x64x64.onnx` (the κ-gated ViT-T model, fixed batch-1 graph: heads are processed one by one; N-batch graphs are also accepted and run all heads of a frame in one pass). The crop contract of section 3 (5% per-side expansion, long-side square clamped at the border, resize to S×S) is applied as-is to every head with score ≥ 0.70 (`--head_score_threshold`). Input normalization is detected per model: the pose model from its ONNX metadata (center05, or ImageNet for the dinov3 yaw/pitch-only graph), the detector from its graph (ImageNet mean/std for DINOv3-based detectors, plain /255 for HGNetV2-based ones; `--detector_norm div255|imagenet` overrides it — the training crops were built with `div255`). Keys on video / camera input: ESC = quit, `b` = head boxes, `a` = 3-axis overlay, `t` = angle text, `r` = yaw ring. `--save_raw_predictions` writes one JSON per image / frame (bbox, score, yaw/pitch/roll, κ); `--yaw_smooth_tau 0.15` smooths the ring display with a circular EMA (display only). For camera input the recording (`output.mp4`) is kept in real time: a webcam in low light extends its exposure and delivers far fewer frames per second than its nominal rate (5 to 15 fps instead of 30 on the test camera), so frames are repeated or skipped by wall-clock time instead of being written one per captured frame, which would play back fast-forwarded; the measured camera frame rate is printed at the end.
 
 The detector graph is pruned at load time to the nodes that feed `label_xyxy_score`. The `*_boxes_only.onnx` files still carry the instance-mask branch of the graphs they were derived from (only the `masks` output was removed); its `Einsum` runs over the top-K rows of class 0 (body) and receives zero-size tensors on frames without any such row, e.g. extremely dark frames, which crashes onnxruntime (CUDA EP: `CUBLAS_STATUS_INVALID_VALUE` at `/postprocessor/Einsum`, CPU EP: segmentation fault). The pruned graph produces identical `label_xyxy_score` values and runs about 5% faster.
+
+Execution providers are selected independently with `--detector_device` (default: `cuda`) and `--pose_device` (default: CUDA if available, otherwise CPU). Both accept `cpu`, `cuda`, `cuda:0` or `tensorrt`. The existing `-d` / `--device` flags are aliases for `--pose_device` and now affect only the pose estimator; use `--detector_device tensorrt --pose_device tensorrt` for TensorRT on both stages, or `--detector_device cpu --pose_device cpu` for CPU on both. TensorRT falls back to CUDA (when available), then CPU; CUDA falls back to CPU for unsupported operations. `--inference_type` and `--trt_cache_dir` apply to whichever stages use TensorRT.
+
+`--detect_all_classes` draws bounding boxes for non-attribute detector classes with a score at or above `--head_score_threshold`, except face (16), eyes (17), nose (18), mouth (19) and ears (20), whose boxes are hidden to keep the head-pose axes clear. Age (1–2), gender (3–4), head direction (8–15) and left/right subclasses (23–24, 27–28, 30–31, 33–34, 37–38, 40–41, 43–44, 46–47) are also omitted because they share their parent class's box in the [Wholebody49 annotation definition](https://github.com/PINTO0309/PINTO_model_zoo/tree/main/488_DEIMv2-Wholebody49#2-annotation). Head (7) boxes remain visible and keep their green color; other classes use a fixed palette of bright colors selected by class ID, with a black outline for visibility on light backgrounds. Pose estimation, angle overlays, the yaw ring and saved pose JSON still use only head detections (class 7). `--disable_bbox` and the `b` key hide/show all bounding boxes in this mode. Without the flag, only head boxes are drawn.
 
 ## 7. Repository layout
 

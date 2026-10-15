@@ -225,6 +225,7 @@ output_dir/
 *.profile
 *.timing
 runs/
+video/
 
 # Pretrained weights such as DINOv3 (not committed for license reasons)
 *.pth

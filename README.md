@@ -64,48 +64,48 @@ This is a benchmark based on the SynthYawPitchPose dataset; it does not utilize 
 
 | Body | Backbone | Input | Params<br>(M) | GMACs<br>GFLOPs | CPU<br>(ms) | MAAE<br>yaw | <br>pitch |
 |---|---|--:|--:|--:|--:|--:|--:|
-| dinov3-320 | ViT-L/16 | 320x320 | 304.2 | 130.7<br>261.4 | 352 | 0.29 | 0.23 |
-| [vitt-128](https://github.com/PINTO0309/High-Angle_Robust_Fast_Head_Pose_Estimation/releases/download/weights/vitt_distill_128_yp_unified_v12.tar.gz) | ViT-T/16 | 128x128 | 5.6 | 0.374<br>0.748 | 3.3 | 0.54 | 0.50 |
-| [vitt-064](https://github.com/PINTO0309/High-Angle_Robust_Fast_Head_Pose_Estimation/releases/download/weights/vitt_distill_064_yp_unified_v12.tar.gz) | ViT-T/16 | 64x64 | 5.6 | 0.094<br>0.188 | 1.8 | 0.80 | 0.70 |
-| [hgnetv2-128](https://github.com/PINTO0309/High-Angle_Robust_Fast_Head_Pose_Estimation/releases/download/weights/hgnetv2_distill_128_yp_unified_v12.tar.gz) | PP-HGNetV2-B0 | 128x128 | 1.9 | 0.156<br>0.312 | 1.4 | 2.09 | 1.99 |
-| [hgnetv2-064](https://github.com/PINTO0309/High-Angle_Robust_Fast_Head_Pose_Estimation/releases/download/weights/hgnetv2_distill_064_yp_unified_v12.tar.gz) | PP-HGNetV2-B0 | 64x64 | 1.9 | 0.039<br>0.078 | 0.7 | 2.60 | 2.13 |
-| [yawnet-128](https://github.com/PINTO0309/High-Angle_Robust_Fast_Head_Pose_Estimation/releases/download/weights/yawnet_distill_128_yp_unified_v12.tar.gz) | MBConv | 128x128 | 0.76 | 0.050<br>0.101 | 1.1 | 5.47 | 7.69 |
-| [yawnet-064](https://github.com/PINTO0309/High-Angle_Robust_Fast_Head_Pose_Estimation/releases/download/weights/yawnet_distill_064_yp_unified_v12.tar.gz) | MBConv | 64x64 | 0.76 | 0.013<br>0.026 | 0.7 | 5.64 | 7.55 |
+| dinov3-320 | ViT-L/16 | 320x320 | 304.2 | 130.7<br>261.4 | 352 | 0.25 | 0.21 |
+| [vitt-128](https://github.com/PINTO0309/High-Angle_Robust_Fast_Head_Pose_Estimation/releases/download/weights/vitt_distill_128_yp_unified_v12.tar.gz) | ViT-T/16 | 128x128 | 5.6 | 0.374<br>0.748 | 3.3 | 0.53 | 0.49 |
+| [vitt-064](https://github.com/PINTO0309/High-Angle_Robust_Fast_Head_Pose_Estimation/releases/download/weights/vitt_distill_064_yp_unified_v12.tar.gz) | ViT-T/16 | 64x64 | 5.6 | 0.094<br>0.188 | 1.8 | 0.76 | 0.67 |
+| [hgnetv2-128](https://github.com/PINTO0309/High-Angle_Robust_Fast_Head_Pose_Estimation/releases/download/weights/hgnetv2_distill_128_yp_unified_v12.tar.gz) | PP-HGNetV2-B0 | 128x128 | 1.9 | 0.156<br>0.312 | 1.4 | 1.83 | 1.71 |
+| [hgnetv2-064](https://github.com/PINTO0309/High-Angle_Robust_Fast_Head_Pose_Estimation/releases/download/weights/hgnetv2_distill_064_yp_unified_v12.tar.gz) | PP-HGNetV2-B0 | 64x64 | 1.9 | 0.039<br>0.078 | 0.7 | 2.34 | 2.02 |
+| [yawnet-128](https://github.com/PINTO0309/High-Angle_Robust_Fast_Head_Pose_Estimation/releases/download/weights/yawnet_distill_128_yp_unified_v12.tar.gz) | MBConv | 128x128 | 0.76 | 0.050<br>0.101 | 1.1 | 5.22 | 7.54 |
+| [yawnet-064](https://github.com/PINTO0309/High-Angle_Robust_Fast_Head_Pose_Estimation/releases/download/weights/yawnet_distill_064_yp_unified_v12.tar.gz) | MBConv | 64x64 | 0.76 | 0.013<br>0.026 | 0.7 | 5.55 | 7.55 |
 
 **Integrated one-pass HFHPE** (`hfhpe_*.onnx` = roll branch + in-graph derotation + the body above; the roll branch adds 0.77M params):
 
 | Model | Backbone | Input | Params<br>(M) | GMACs<br>GFLOPs | CPU<br>(ms) | MAAE<br>yaw | <br>pitch | <br>roll |
 |---|---|--:|--:|--:|--:|--:|--:|--:|
-| hfhpe_dinov3 | ViT-L/16 | 320x320 | 305.1 | 130.7<br>261.5 | 354 | 0.29 | 0.23 | [2.85](https://github.com/PINTO0309/High-Angle_Robust_Fast_Head_Pose_Estimation/releases/download/weights/hfhpe_roll_128_unified_kd_vitl_canvas4_w100.tar.gz) |
-| [hfhpe_vitt](https://github.com/PINTO0309/High-Angle_Robust_Fast_Head_Pose_Estimation/releases/download/weights/vitt_distill_128_yp_unified_v12.tar.gz) | ViT-T/16 | 128x128 | 6.4 | 0.425<br>0.849 | 4.9 | 0.54 | 0.50 | [2.85](https://github.com/PINTO0309/High-Angle_Robust_Fast_Head_Pose_Estimation/releases/download/weights/hfhpe_roll_128_unified_kd_vitl_canvas4_w100.tar.gz) |
-| [hfhpe_vitt](https://github.com/PINTO0309/High-Angle_Robust_Fast_Head_Pose_Estimation/releases/download/weights/vitt_distill_064_yp_unified_v12.tar.gz) | ViT-T/16 | 64x64 | 6.4 | 0.107<br>0.214 | 2.5 | 0.80 | 0.70 | [3.29](https://github.com/PINTO0309/High-Angle_Robust_Fast_Head_Pose_Estimation/releases/download/weights/hfhpe_roll_064_unified_kd_vitl_canvas4_w100.tar.gz) |
-| [hfhpe_hgnetv2](https://github.com/PINTO0309/High-Angle_Robust_Fast_Head_Pose_Estimation/releases/download/weights/hgnetv2_distill_128_yp_unified_v12.tar.gz) | PP-HGNetV2-B0 | 128x128 | 2.6 | 0.207<br>0.413 | 3.2 | 2.09 | 1.99 | [2.85](https://github.com/PINTO0309/High-Angle_Robust_Fast_Head_Pose_Estimation/releases/download/weights/hfhpe_roll_128_unified_kd_vitl_canvas4_w100.tar.gz) |
-| [hfhpe_hgnetv2](https://github.com/PINTO0309/High-Angle_Robust_Fast_Head_Pose_Estimation/releases/download/weights/hgnetv2_distill_064_yp_unified_v12.tar.gz) | PP-HGNetV2-B0 | 64x64 | 2.6 | 0.052<br>0.104 | 1.4 | 2.60 | 2.13 | [3.29](https://github.com/PINTO0309/High-Angle_Robust_Fast_Head_Pose_Estimation/releases/download/weights/hfhpe_roll_064_unified_kd_vitl_canvas4_w100.tar.gz) |
-| [hfhpe_yawnet](https://github.com/PINTO0309/High-Angle_Robust_Fast_Head_Pose_Estimation/releases/download/weights/yawnet_distill_128_yp_unified_v12.tar.gz) | MBConv | 128x128 | 1.6 | 0.101<br>0.202 | 2.6 | 5.47 | 7.69 | [2.85](https://github.com/PINTO0309/High-Angle_Robust_Fast_Head_Pose_Estimation/releases/download/weights/hfhpe_roll_128_unified_kd_vitl_canvas4_w100.tar.gz) |
-| [hfhpe_yawnet](https://github.com/PINTO0309/High-Angle_Robust_Fast_Head_Pose_Estimation/releases/download/weights/yawnet_distill_064_yp_unified_v12.tar.gz) | MBConv | 64x64 | 1.5 | 0.026<br>0.051 | 1.4 | 5.64 | 7.55 | [3.29](https://github.com/PINTO0309/High-Angle_Robust_Fast_Head_Pose_Estimation/releases/download/weights/hfhpe_roll_064_unified_kd_vitl_canvas4_w100.tar.gz) |
+| hfhpe_dinov3 | ViT-L/16 | 320x320 | 305.1 | 130.7<br>261.5 | 354 | 0.25 | 0.21 | [2.83](https://github.com/PINTO0309/High-Angle_Robust_Fast_Head_Pose_Estimation/releases/download/weights/hfhpe_roll_128_unified_kd_vitl_canvas4_w100.tar.gz) |
+| [hfhpe_vitt](https://github.com/PINTO0309/High-Angle_Robust_Fast_Head_Pose_Estimation/releases/download/weights/vitt_distill_128_yp_unified_v12.tar.gz) | ViT-T/16 | 128x128 | 6.4 | 0.425<br>0.849 | 4.9 | 0.53 | 0.49 | [2.83](https://github.com/PINTO0309/High-Angle_Robust_Fast_Head_Pose_Estimation/releases/download/weights/hfhpe_roll_128_unified_kd_vitl_canvas4_w100.tar.gz) |
+| [hfhpe_vitt](https://github.com/PINTO0309/High-Angle_Robust_Fast_Head_Pose_Estimation/releases/download/weights/vitt_distill_064_yp_unified_v12.tar.gz) | ViT-T/16 | 64x64 | 6.4 | 0.107<br>0.214 | 2.5 | 0.76 | 0.67 | [3.28](https://github.com/PINTO0309/High-Angle_Robust_Fast_Head_Pose_Estimation/releases/download/weights/hfhpe_roll_064_unified_kd_vitl_canvas4_w100.tar.gz) |
+| [hfhpe_hgnetv2](https://github.com/PINTO0309/High-Angle_Robust_Fast_Head_Pose_Estimation/releases/download/weights/hgnetv2_distill_128_yp_unified_v12.tar.gz) | PP-HGNetV2-B0 | 128x128 | 2.6 | 0.207<br>0.413 | 3.2 | 1.83 | 1.71 | [2.83](https://github.com/PINTO0309/High-Angle_Robust_Fast_Head_Pose_Estimation/releases/download/weights/hfhpe_roll_128_unified_kd_vitl_canvas4_w100.tar.gz) |
+| [hfhpe_hgnetv2](https://github.com/PINTO0309/High-Angle_Robust_Fast_Head_Pose_Estimation/releases/download/weights/hgnetv2_distill_064_yp_unified_v12.tar.gz) | PP-HGNetV2-B0 | 64x64 | 2.6 | 0.052<br>0.104 | 1.4 | 2.34 | 2.02 | [3.28](https://github.com/PINTO0309/High-Angle_Robust_Fast_Head_Pose_Estimation/releases/download/weights/hfhpe_roll_064_unified_kd_vitl_canvas4_w100.tar.gz) |
+| [hfhpe_yawnet](https://github.com/PINTO0309/High-Angle_Robust_Fast_Head_Pose_Estimation/releases/download/weights/yawnet_distill_128_yp_unified_v12.tar.gz) | MBConv | 128x128 | 1.6 | 0.101<br>0.202 | 2.6 | 5.22 | 7.54 | [2.83](https://github.com/PINTO0309/High-Angle_Robust_Fast_Head_Pose_Estimation/releases/download/weights/hfhpe_roll_128_unified_kd_vitl_canvas4_w100.tar.gz) |
+| [hfhpe_yawnet](https://github.com/PINTO0309/High-Angle_Robust_Fast_Head_Pose_Estimation/releases/download/weights/yawnet_distill_064_yp_unified_v12.tar.gz) | MBConv | 64x64 | 1.5 | 0.026<br>0.051 | 1.4 | 5.55 | 7.55 | [3.28](https://github.com/PINTO0309/High-Angle_Robust_Fast_Head_Pose_Estimation/releases/download/weights/hfhpe_roll_064_unified_kd_vitl_canvas4_w100.tar.gz) |
 
 **Accuracy by pose bin (body-only graphs, validation set).** MAAE in degrees, each cell is `yaw / pitch`; the bins are the ground-truth |yaw| (frontal 0° to the back of the head 180°, left and right folded together) and the ground-truth pitch. The last row is the number of validation crops per bin (`scripts/eval_pose_bins.py`).
 
 | Model | \|yaw\|<br>0–30 | <br>30–60 | <br>60–90 | <br>90–120 | <br>120–150 | <br>150–180 |
 |---|--:|--:|--:|--:|--:|--:|
-| dinov3-320 | 0.26 / 0.28 | 0.28 / 0.21 | 0.27 / 0.21 | 0.26 / 0.21 | 0.33 / 0.25 | 0.28 / 0.22 |
-| vitt-128 | 0.56 / 0.55 | 0.57 / 0.44 | 0.56 / 0.48 | 0.44 / 0.45 | 0.60 / 0.55 | 0.52 / 0.47 |
-| vitt-064 | 0.81 / 0.79 | 0.79 / 0.58 | 0.79 / 0.64 | 0.67 / 0.64 | 0.88 / 0.77 | 0.78 / 0.68 |
-| hgnetv2-128 | 2.22 / 2.30 | 1.96 / 1.74 | 1.91 / 1.99 | 1.72 / 1.72 | 2.40 / 2.13 | 2.20 / 1.86 |
-| hgnetv2-064 | 2.57 / 2.40 | 2.43 / 1.79 | 2.41 / 2.19 | 2.21 / 1.88 | 2.91 / 2.27 | 2.94 / 2.04 |
-| yawnet-128 | 3.64 / 7.79 | 6.70 / 8.53 | 5.35 / 7.35 | 5.49 / 7.14 | 6.06 / 7.86 | 5.79 / 7.95 |
-| yawnet-064 | 3.78 / 7.33 | 6.98 / 7.94 | 5.44 / 7.42 | 5.49 / 6.96 | 6.23 / 7.88 | 6.29 / 7.90 |
+| dinov3-320 | 0.23 / 0.25 | 0.26 / 0.19 | 0.25 / 0.20 | 0.23 / 0.20 | 0.29 / 0.23 | 0.25 / 0.21 |
+| vitt-128 | 0.53 / 0.54 | 0.53 / 0.44 | 0.57 / 0.45 | 0.44 / 0.44 | 0.56 / 0.54 | 0.50 / 0.47 |
+| vitt-064 | 0.77 / 0.73 | 0.77 / 0.60 | 0.76 / 0.61 | 0.65 / 0.61 | 0.83 / 0.75 | 0.73 / 0.66 |
+| hgnetv2-128 | 2.07 / 1.94 | 1.74 / 1.61 | 1.65 / 1.74 | 1.52 / 1.51 | 2.02 / 1.78 | 1.93 / 1.62 |
+| hgnetv2-064 | 2.39 / 2.22 | 2.22 / 1.74 | 2.16 / 2.03 | 2.03 / 1.79 | 2.56 / 2.16 | 2.58 / 2.00 |
+| yawnet-128 | 3.31 / 7.39 | 6.43 / 8.32 | 5.15 / 7.16 | 5.31 / 7.04 | 5.88 / 7.86 | 5.39 / 7.88 |
+| yawnet-064 | 3.74 / 7.24 | 6.55 / 8.11 | 5.39 / 7.42 | 5.42 / 6.96 | 6.23 / 7.92 | 6.16 / 7.78 |
 | n | 789 | 434 | 1036 | 909 | 1349 | 630 |
 
 | Model | pitch<br>−120..−90 | <br>−90..−60 | <br>−60..−30 | <br>−30..0 | <br>0..30 | <br>30..60 | <br>60..90 | <br>90..120 |
 |---|--:|--:|--:|--:|--:|--:|--:|--:|
-| dinov3-320 | 0.26 / 0.43 | 0.32 / 0.27 | 0.25 / 0.23 | 0.29 / 0.22 | 0.28 / 0.22 | 0.29 / 0.24 | 0.26 / 0.35 | 0.26 / 0.36 |
-| vitt-128 | 0.68 / 0.61 | 0.59 / 0.55 | 0.58 / 0.47 | 0.53 / 0.47 | 0.52 / 0.50 | 0.56 / 0.51 | 0.50 / 0.58 | 0.48 / 0.63 |
-| vitt-064 | 0.84 / 0.81 | 0.91 / 0.78 | 0.79 / 0.66 | 0.76 / 0.68 | 0.80 / 0.70 | 0.82 / 0.68 | 0.73 / 0.79 | 0.68 / 0.84 |
-| hgnetv2-128 | 2.46 / 2.73 | 2.19 / 1.84 | 2.07 / 1.80 | 2.02 / 1.98 | 2.16 / 2.02 | 1.92 / 2.06 | 2.47 / 2.76 | 2.28 / 2.47 |
-| hgnetv2-064 | 2.67 / 2.90 | 2.82 / 2.13 | 2.61 / 2.05 | 2.51 / 2.18 | 2.58 / 2.04 | 2.62 / 2.24 | 2.86 / 2.48 | 2.61 / 2.52 |
-| yawnet-128 | 7.87 / 10.66 | 5.88 / 8.35 | 5.68 / 8.29 | 5.33 / 7.19 | 5.45 / 6.43 | 5.36 / 9.87 | 5.14 / 10.54 | 3.47 / 9.76 |
-| yawnet-064 | 4.77 / 9.90 | 6.07 / 8.30 | 5.74 / 8.17 | 5.58 / 7.09 | 5.65 / 6.39 | 5.59 / 9.64 | 5.00 / 9.88 | 4.02 / 7.86 |
+| dinov3-320 | 0.21 / 0.32 | 0.28 / 0.25 | 0.25 / 0.20 | 0.25 / 0.19 | 0.25 / 0.21 | 0.25 / 0.25 | 0.26 / 0.29 | 0.21 / 0.33 |
+| vitt-128 | 0.53 / 0.69 | 0.57 / 0.54 | 0.57 / 0.48 | 0.50 / 0.46 | 0.51 / 0.50 | 0.55 / 0.49 | 0.49 / 0.53 | 0.47 / 0.54 |
+| vitt-064 | 0.82 / 0.95 | 0.86 / 0.70 | 0.74 / 0.65 | 0.73 / 0.66 | 0.77 / 0.68 | 0.77 / 0.63 | 0.66 / 0.85 | 0.71 / 0.83 |
+| hgnetv2-128 | 2.08 / 2.18 | 1.90 / 1.60 | 1.84 / 1.59 | 1.79 / 1.72 | 1.82 / 1.72 | 1.72 / 1.74 | 2.35 / 2.35 | 2.16 / 2.25 |
+| hgnetv2-064 | 2.44 / 2.66 | 2.51 / 2.08 | 2.38 / 1.96 | 2.24 / 2.03 | 2.32 / 1.90 | 2.35 / 2.20 | 2.61 / 2.39 | 2.48 / 2.47 |
+| yawnet-128 | 3.21 / 9.36 | 5.36 / 8.30 | 5.39 / 8.13 | 5.13 / 7.21 | 5.32 / 6.38 | 5.33 / 9.36 | 4.76 / 9.90 | 3.45 / 7.98 |
+| yawnet-064 | 4.92 / 10.37 | 6.01 / 8.21 | 5.65 / 8.17 | 5.52 / 7.13 | 5.53 / 6.31 | 5.52 / 9.65 | 4.98 / 9.92 | 4.19 / 8.48 |
 | n | 36 | 456 | 889 | 1566 | 1471 | 537 | 129 | 63 |
 
 Observations: the ViT-based bodies are flat across the full yaw circle (side and back views cost nothing extra), and their pitch error grows only at the extreme bins beyond ±90°, which hold few samples. The MBConv student is clearly weaker outside the frontal bin for yaw and above 30° / below −30° for pitch, i.e. it is the capacity, not the pose coverage of the data, that limits the smallest model.
@@ -116,27 +116,27 @@ Yaw MAAE (degrees):
 
 | Model | clean | mblur9 | mblur21 | warm | cool | gamma0.6 | gamma1.6 | gray | jpeg30 |
 |---|--:|--:|--:|--:|--:|--:|--:|--:|--:|
-| dinov3-320 | 0.28 | 0.29 (+3.3%) | 0.40 (+42.2%) | 0.32 (+12.4%) | 0.32 (+14.1%) | 0.29 (+2.8%) | 0.29 (+1.8%) | 0.31 (+9.2%) | 0.30 (+6.6%) |
-| vitt-128 | 0.54 | 0.62 (+14.7%) | 4.94 (+809.0%) | 0.81 (+48.5%) | 0.91 (+66.6%) | 0.63 (+16.1%) | 0.63 (+16.8%) | 0.67 (+22.9%) | 0.62 (+14.7%) |
-| vitt-064 | 0.79 | 2.17 (+173.3%) | 26.88 (+3281.7%) | 1.17 (+46.7%) | 1.32 (+66.2%) | 0.94 (+18.2%) | 0.93 (+16.8%) | 1.02 (+28.2%) | 1.19 (+49.7%) |
-| hgnetv2-128 | 2.09 | 3.00 (+43.4%) | 10.40 (+397.2%) | 2.87 (+37.4%) | 3.31 (+58.1%) | 2.38 (+14.0%) | 2.29 (+9.4%) | 2.63 (+25.8%) | 2.57 (+22.7%) |
-| hgnetv2-064 | 2.60 | 6.10 (+134.8%) | 37.48 (+1342.0%) | 3.37 (+29.8%) | 3.90 (+50.1%) | 2.90 (+11.5%) | 2.80 (+7.7%) | 3.24 (+24.7%) | 3.77 (+45.1%) |
-| yawnet-128 | 5.47 | 5.90 (+7.9%) | 16.50 (+202.0%) | 5.63 (+2.9%) | 5.87 (+7.4%) | 5.52 (+1.0%) | 5.52 (+1.1%) | 5.79 (+5.9%) | 5.74 (+5.0%) |
-| yawnet-064 | 5.63 | 7.11 (+26.2%) | 48.61 (+762.8%) | 5.81 (+3.1%) | 6.11 (+8.4%) | 5.70 (+1.1%) | 5.73 (+1.7%) | 6.04 (+7.2%) | 6.22 (+10.4%) |
+| dinov3-320 | 0.25 | 0.26 (+4.1%) | 0.35 (+38.5%) | 0.29 (+14.3%) | 0.29 (+14.3%) | 0.26 (+3.0%) | 0.26 (+2.3%) | 0.28 (+10.0%) | 0.27 (+6.0%) |
+| vitt-128 | 0.53 | 0.60 (+14.7%) | 4.75 (+803.8%) | 0.78 (+48.8%) | 0.84 (+60.5%) | 0.61 (+16.1%) | 0.61 (+15.2%) | 0.62 (+17.5%) | 0.61 (+16.1%) |
+| vitt-064 | 0.76 | 2.06 (+172.3%) | 26.12 (+3348.2%) | 1.12 (+47.2%) | 1.25 (+64.5%) | 0.89 (+17.1%) | 0.88 (+16.8%) | 0.93 (+22.5%) | 1.14 (+50.2%) |
+| hgnetv2-128 | 1.83 | 2.70 (+47.6%) | 10.08 (+450.7%) | 2.57 (+40.4%) | 3.03 (+65.5%) | 2.12 (+15.8%) | 2.03 (+10.8%) | 2.34 (+27.7%) | 2.31 (+25.9%) |
+| hgnetv2-064 | 2.34 | 5.73 (+145.4%) | 36.63 (+1468.5%) | 3.11 (+33.4%) | 3.64 (+55.9%) | 2.63 (+12.6%) | 2.57 (+9.9%) | 2.94 (+26.0%) | 3.51 (+50.3%) |
+| yawnet-128 | 5.22 | 5.58 (+6.8%) | 14.83 (+183.8%) | 5.33 (+2.1%) | 5.64 (+8.0%) | 5.28 (+1.1%) | 5.29 (+1.2%) | 5.52 (+5.7%) | 5.44 (+4.1%) |
+| yawnet-064 | 5.55 | 6.86 (+23.6%) | 47.70 (+759.1%) | 5.72 (+3.0%) | 6.05 (+8.9%) | 5.67 (+2.2%) | 5.63 (+1.5%) | 5.97 (+7.6%) | 6.13 (+10.5%) |
 
 Pitch MAAE (degrees):
 
 | Model | clean | mblur9 | mblur21 | warm | cool | gamma0.6 | gamma1.6 | gray | jpeg30 |
 |---|--:|--:|--:|--:|--:|--:|--:|--:|--:|
-| dinov3-320 | 0.23 | 0.24 (+3.6%) | 0.31 (+32.9%) | 0.28 (+18.1%) | 0.28 (+18.7%) | 0.24 (+3.4%) | 0.24 (+2.2%) | 0.26 (+10.9%) | 0.25 (+7.0%) |
-| vitt-128 | 0.50 | 0.59 (+17.8%) | 4.52 (+809.0%) | 0.81 (+62.3%) | 0.88 (+77.0%) | 0.58 (+15.8%) | 0.58 (+17.0%) | 0.62 (+24.9%) | 0.58 (+15.8%) |
-| vitt-064 | 0.70 | 2.01 (+188.2%) | 21.98 (+3053.9%) | 1.12 (+60.2%) | 1.31 (+88.0%) | 0.81 (+16.8%) | 0.82 (+18.2%) | 0.88 (+26.0%) | 1.03 (+47.6%) |
-| hgnetv2-128 | 1.99 | 2.97 (+49.4%) | 10.33 (+419.1%) | 3.10 (+56.0%) | 3.81 (+91.6%) | 2.33 (+17.2%) | 2.23 (+12.1%) | 2.63 (+32.2%) | 2.56 (+28.8%) |
-| hgnetv2-064 | 2.13 | 5.40 (+152.8%) | 28.15 (+1218.4%) | 3.34 (+56.6%) | 3.89 (+82.2%) | 2.47 (+15.5%) | 2.37 (+10.8%) | 2.75 (+28.8%) | 3.26 (+52.6%) |
-| yawnet-128 | 7.69 | 7.81 (+1.6%) | 15.67 (+103.8%) | 7.88 (+2.6%) | 8.11 (+5.5%) | 7.75 (+0.8%) | 7.72 (+0.4%) | 7.80 (+1.5%) | 7.82 (+1.7%) |
-| yawnet-064 | 7.55 | 8.24 (+9.1%) | 40.34 (+434.5%) | 7.83 (+3.8%) | 7.92 (+4.9%) | 7.62 (+0.9%) | 7.63 (+1.1%) | 7.72 (+2.3%) | 7.84 (+3.8%) |
+| dinov3-320 | 0.21 | 0.22 (+3.6%) | 0.29 (+33.9%) | 0.25 (+18.8%) | 0.26 (+19.8%) | 0.22 (+3.1%) | 0.22 (+2.2%) | 0.24 (+11.6%) | 0.23 (+6.5%) |
+| vitt-128 | 0.49 | 0.55 (+13.7%) | 4.38 (+797.4%) | 0.77 (+58.9%) | 0.84 (+71.8%) | 0.56 (+15.6%) | 0.57 (+16.1%) | 0.60 (+22.5%) | 0.56 (+15.3%) |
+| vitt-064 | 0.67 | 1.95 (+190.5%) | 21.45 (+3097.6%) | 1.11 (+65.0%) | 1.22 (+81.6%) | 0.79 (+17.8%) | 0.79 (+18.1%) | 0.85 (+26.8%) | 0.99 (+47.2%) |
+| hgnetv2-128 | 1.71 | 2.63 (+53.2%) | 9.77 (+470.0%) | 2.77 (+61.7%) | 3.41 (+99.3%) | 2.05 (+19.4%) | 1.94 (+13.0%) | 2.28 (+33.0%) | 2.24 (+31.0%) |
+| hgnetv2-064 | 2.02 | 5.18 (+156.2%) | 26.53 (+1212.6%) | 3.22 (+59.2%) | 3.70 (+82.9%) | 2.34 (+15.9%) | 2.23 (+10.5%) | 2.54 (+25.9%) | 3.11 (+53.8%) |
+| yawnet-128 | 7.54 | 7.64 (+1.2%) | 14.31 (+89.7%) | 7.75 (+2.8%) | 7.91 (+4.8%) | 7.59 (+0.6%) | 7.55 (+0.1%) | 7.63 (+1.2%) | 7.63 (+1.1%) |
+| yawnet-064 | 7.55 | 8.31 (+10.2%) | 36.14 (+378.9%) | 7.80 (+3.4%) | 8.07 (+6.9%) | 7.60 (+0.7%) | 7.61 (+0.8%) | 7.73 (+2.4%) | 7.81 (+3.6%) |
 
-Observations: motion blur is the main weakness; on a 64 px input the 21 px blur spans a third of the crop, hence the extreme rows (as noted above, the degradations are applied in input pixels, so the 64 px rows are not comparable with the 128 / 320 px rows). The color-temperature shifts (warm / cool) cost the ViT-T and PP-HGNetV2 students 40–90 %, while the MBConv student moves by only a few percent; models with small absolute errors naturally show larger relative changes. Gamma, grayscale and JPEG recompression are comparatively mild for every model.
+Observations: motion blur is the main weakness; on a 64 px input the 21 px blur spans a third of the crop, hence the extreme rows (as noted above, the degradations are applied in input pixels, so the 64 px rows are not comparable with the 128 / 320 px rows). The color-temperature shifts (warm / cool) cost the ViT-T and PP-HGNetV2 students 35–100 %, while the MBConv student moves by only a few percent; models with small absolute errors naturally show larger relative changes. Gamma, grayscale and JPEG recompression are comparatively mild for every model.
 
 **How to read these numbers (important):** the models are trained with `--unified` (train + validation merged on purpose), so the yaw/pitch values above measure how well each model fits the training distribution and **must not be compared with published benchmark results**. They are selection metrics, useful for comparing the rows against each other. The yaw/pitch columns are the same in both tables because the roll branch does not change the body; the integrated table adds the roll estimate, the derotation and their cost. The roll column is the roll branch — a YawNet w1.0 (0.77M) distilled online from a DINOv3 ViT-L/16 roll teacher trained at 320×320, run at 64×64 for the 64 px students and at 128×128 for hfhpe_dinov3 and the 128 px hfhpe_vitt / hfhpe_hgnetv2 / hfhpe_yawnet — evaluated on **wedge-free canvas rotations** of the validation crops, an honest protocol in which the four corners are filled with real context pixels instead of border replication.
 

@@ -58,6 +58,12 @@ A training, distillation and ONNX deployment pipeline for **one-pass yaw / pitch
 
   <img width="3272" height="3268" alt="brightness_extended_5x5" src="https://github.com/user-attachments/assets/c59f6e95-6ac9-4ab9-813e-6056fe148e62" />
 
+- DEIMv2-S score threshold>=0.35 + ViTT 128x128 - Testing using a thermal camera. CAMERA: HIKMICRO Pocket2
+  - Since the training data does not include a single image from a thermal camera, the head orientation estimation becomes highly inaccurate.
+  - Since the object detection component is functioning correctly, it is likely that the head orientation estimation model could also achieve high accuracy if fine-tuned using additional training data consisting of thermal camera footage.
+
+  https://github.com/user-attachments/assets/1fdf94d5-29d4-4673-bf7a-79219f06555c
+
 ## 1. Results at a glance
 
 Validation MAAE (mean absolute angular error, degrees, lower is better) of the current generation (all four bodies retrained). Params and GMACs are counted on the exported ONNX graphs (`scripts/count_macs_onnx.py`; GFLOPs = 2 × GMACs). CPU ms = average latency of the batch-1 graph on an i9-10900K with onnxruntime 1.22 CPU EP, measured with [sit4onnx](https://github.com/PINTO0309/sit4onnx).

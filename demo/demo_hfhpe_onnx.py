@@ -865,9 +865,19 @@ def process_video(pipeline: Pipeline, video: str, output_dir: Path, save_raw: bo
     if not cap.isOpened():
         raise RuntimeError(f"Failed to open video source: {video}")
     if is_camera:  # camera input is fixed to VGA (640×480)
+        # Match simpcamcap: some UVC cameras only stream VGA as MJPEG. Leaving
+        # FOURCC unset can select a non-working YUYV mode (e.g. 640×256).
+        # Choose the format before the size so its supported modes are used.
+        cap.set(cv2.CAP_PROP_FOURCC, cv2.VideoWriter_fourcc(*"MJPG"))
         cap.set(cv2.CAP_PROP_FRAME_WIDTH, 640)
         cap.set(cv2.CAP_PROP_FRAME_HEIGHT, 480)
     print(f"Processing video source: {video}")
+    if is_camera:
+        code = int(cap.get(cv2.CAP_PROP_FOURCC))
+        fourcc = "".join(chr((code >> (8 * i)) & 0xFF) for i in range(4)).rstrip("\x00") or "unknown"
+        print(f"Camera capture: {cap.get(cv2.CAP_PROP_FRAME_WIDTH):.0f}x"
+              f"{cap.get(cv2.CAP_PROP_FRAME_HEIGHT):.0f}, {fourcc}, "
+              f"{cap.get(cv2.CAP_PROP_FPS):g} fps (reported)")
     if pipeline.yaw_smooth_tau > 0.0:
         pipeline.ring_smoother = YawSmoother(pipeline.yaw_smooth_tau)
     writer = None
@@ -878,6 +888,10 @@ def process_video(pipeline: Pipeline, video: str, output_dir: Path, save_raw: bo
         while True:
             ok, frame = cap.read()
             if not ok:
+                if is_camera:
+                    raise RuntimeError(f"Failed to read a frame from camera {video} "
+                                       f"after {frame_index} frames; negotiated format: {fourcc}. "
+                                       "Check the camera's supported capture formats and USB connection.")
                 break
             t_frame = time.perf_counter()  # ≈ capture time of this frame
             if frame_index == 0:

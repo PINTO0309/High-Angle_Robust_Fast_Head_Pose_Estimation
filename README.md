@@ -405,6 +405,12 @@ The pitch coefficient of the camera elevation (−0.166) is a mirrored assumptio
 
 ## 6. ONNX demo
 
+Camera input (`-v 0`) requests MJPEG (`MJPG`) at 640×480, matching `simpcamcap`,
+and prints the negotiated capture format at startup. Some UVC cameras support VGA
+only in MJPEG; leaving the format unspecified can select a YUYV mode that produces
+`VIDEOIO(V4L2): select() timeout`. A failed camera read is reported as an error;
+video files still stop normally at the end of the stream.
+
 Two-stage inference demo (adapted from the [HRFFA](https://github.com/PINTO0309/High-Angle_Robust_Fast_FaceAlignment) demo; no face alignment or YawNet stage): DEIMv2-Wholebody49 head detection → integrated HFHPE ONNX on every head crop. It draws the head boxes, a 3-axis pose overlay per head (X = red right cheek, Y = green chin, Z = blue nose), the per-head yaw/pitch/roll text, and a top-right yaw ring for the largest head (0 = facing the camera, 90 = viewer's left).
 
 ```bash

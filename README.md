@@ -58,7 +58,7 @@ A training, distillation and ONNX deployment pipeline for **one-pass yaw / pitch
 
   <img width="3272" height="3268" alt="brightness_extended_5x5" src="https://github.com/user-attachments/assets/c59f6e95-6ac9-4ab9-813e-6056fe148e62" />
 
-- DEIMv2-S score threshold>=0.35 + ViTT 128x128 - Testing using a thermal camera. CAMERA: HIKMICRO Pocket2
+- DEIMv2-S score threshold>=0.35 + DINOv3 320x320 - Testing using a thermal camera. CAMERA: HIKMICRO Pocket2
   - Since the training data does not include a single image from a thermal camera, the head orientation estimation becomes highly inaccurate.
   - Since the object detection component is functioning correctly, it is likely that the head orientation estimation model could also achieve high accuracy if fine-tuned using additional training data consisting of thermal camera footage.
 

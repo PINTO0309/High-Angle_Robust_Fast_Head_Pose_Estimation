@@ -59,9 +59,10 @@ A training, distillation and ONNX deployment pipeline for **one-pass yaw / pitch
   <img width="3272" height="3268" alt="brightness_extended_5x5" src="https://github.com/user-attachments/assets/c59f6e95-6ac9-4ab9-813e-6056fe148e62" />
 
 - DEIMv2-S score threshold>=0.35 + DINOv3 320x320 - Testing using a thermal camera. CAMERA: HIKMICRO Pocket2
-  - **[October 18, 2026]** The thermal camera footage shown in the figure below was added to the training data, and fine-tuning was performed.
-  - RGB texture information that could serve as a clue—such as the eyes, nose, or mouth—has been completely lost.
-  - The weights are currently being trained; they will be made public once the training process is complete.
+  - **[October 18, 2026]**
+    - The thermal camera footage shown in the figure below was added to the training data, and fine-tuning was performed.
+    - RGB texture information that could serve as a clue—such as the eyes, nose, or mouth—has been completely lost.
+    - The weights are currently being trained; they will be made public once the training process is complete.
 
     <img width="865" height="900" alt="image" src="https://github.com/user-attachments/assets/d97b609a-d2de-487c-811d-621344ffbaaf" />
 

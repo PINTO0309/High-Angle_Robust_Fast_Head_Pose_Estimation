@@ -62,7 +62,7 @@ A training, distillation and ONNX deployment pipeline for **one-pass yaw / pitch
   - Since the training data does not include a single image from a thermal camera, the head orientation estimation becomes highly inaccurate.
   - Since the object detection component is functioning correctly, it is likely that the head orientation estimation model could also achieve high accuracy if fine-tuned using additional training data consisting of thermal camera footage.
 
-  https://github.com/user-attachments/assets/1fdf94d5-29d4-4673-bf7a-79219f06555c
+  https://github.com/user-attachments/assets/30357e8a-0323-409e-9b1f-7bd2014d134c
 
 ## 1. Results at a glance
 

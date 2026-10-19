@@ -27,11 +27,14 @@ head in the top-right corner (0 = down = facing the camera, 90 = left).
 With --detect_all_classes, boxes for non-attribute detector classes above --head_score_threshold
 are drawn, except face, eyes, nose, mouth and ears to keep the pose axes clear. Pose estimation still
 runs only on class 7 (head).
+With --enable_mosaic, head bbox interiors are pixelated after inference on the original image.
+All head mosaics are rendered first, followed by the bboxes and then the pose axes.
 
 Usage (default models):
   python demo/demo_hfhpe_onnx.py -i images_dir -o output_dir
   python demo/demo_hfhpe_onnx.py -v 0 -o output_dir               # camera 0
   python demo/demo_hfhpe_onnx.py -v input.mp4 -o output_dir -d cuda
+  python demo/demo_hfhpe_onnx.py -v input.mp4 -o output_dir --enable_mosaic
   python demo/demo_hfhpe_onnx.py -v 0 -o output_dir --detector_device cuda --pose_device tensorrt
   python demo/demo_hfhpe_onnx.py -pm models/hfhpe_hgnetv2_Nx3x64x64.onnx -i images -o out
 
@@ -594,8 +597,22 @@ def draw_axis(img: np.ndarray, yaw: float, pitch: float, roll: float,
 
 def draw_results(image: np.ndarray, results: Sequence[HeadResult], draw_bbox: bool,
                  draw_axes: bool, draw_text: bool,
-                 boxes: Sequence[DetectionBox] | None = None) -> np.ndarray:
+                 boxes: Sequence[DetectionBox] | None = None,
+                 mosaic_boxes: Sequence[DetectionBox] = ()) -> np.ndarray:
     out = image.copy()
+    img_h, img_w = image.shape[:2]
+    for box in mosaic_boxes:
+        x1, y1 = max(0, round(box.x1)), max(0, round(box.y1))
+        # Match cv2.rectangle's inclusive bottom-right corner and clip to the frame.
+        x2, y2 = min(img_w, round(box.x2) + 1), min(img_h, round(box.y2) + 1)
+        w, h = x2 - x1, y2 - y1
+        if w <= 0 or h <= 0:
+            continue
+        # Roughly eight mosaic cells across the shorter side of each head bbox.
+        block_size = max(2, round(min(w, h) / 8.0))
+        small = cv2.resize(image[y1:y2, x1:x2], (max(1, w // block_size), max(1, h // block_size)),
+                           interpolation=cv2.INTER_AREA)
+        out[y1:y2, x1:x2] = cv2.resize(small, (w, h), interpolation=cv2.INTER_NEAREST)
     if draw_bbox:
         for box in boxes if boxes is not None else [r.box for r in results]:
             if box.class_id in HIDDEN_BBOX_CLASS_IDS:
@@ -761,6 +778,7 @@ class Pipeline:
         self.detector = HeadDetector(det_path, detector_providers, args.head_score_threshold,
                                      args.detector_norm, detect_all_classes=self.detect_all_classes)
         self.estimator = HeadPoseEstimator(pose_path, pose_providers, args.crop_margin)
+        self.enable_mosaic = args.enable_mosaic
         self.draw_bbox = not args.disable_bbox
         self.draw_axes = not args.disable_axes
         self.draw_text = not args.disable_angle_text
@@ -784,7 +802,8 @@ class Pipeline:
         results = self.estimator(image, heads)
         infer_ms = (self.detector.last_inference_time + self.estimator.last_inference_time) * 1000.0
         rendered = draw_results(image, results, self.draw_bbox, self.draw_axes, self.draw_text,
-                                boxes=boxes if self.detect_all_classes else None)
+                                boxes=boxes if self.detect_all_classes else None,
+                                mosaic_boxes=heads if self.enable_mosaic else ())
         if self.draw_ring and results:
             ring_deg = None
             if self.ring_smoother is not None:
@@ -976,6 +995,8 @@ def parse_args() -> argparse.Namespace:
                     help="head-bbox expansion ratio per side of the square crop (crop-contract value: 0.05)")
     ap.add_argument("--yaw_smooth_tau", type=float, default=0.0,
                     help="circular-EMA time constant in seconds for the yaw ring on video / camera input (display only; default 0 = no smoothing, e.g. 0.15 to enable)")
+    ap.add_argument("--enable_mosaic", action="store_true",
+                    help="pixelate head bbox interiors after inference on the original image, before drawing bboxes and pose axes")
     ap.add_argument("--disable_bbox", action="store_true", help="do not draw bounding boxes (including --detect_all_classes)")
     ap.add_argument("--disable_axes", action="store_true", help="do not draw the 3-axis pose overlay (X=red right cheek, Y=green chin, Z=blue nose)")
     ap.add_argument("--disable_angle_text", action="store_true", help="do not draw the per-head yaw/pitch/roll text")

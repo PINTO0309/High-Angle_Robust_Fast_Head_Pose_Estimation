@@ -7,8 +7,12 @@ swapped via command-line arguments (the Face Alignment / YawNet stages are not u
      Coordinates are normalized to [0,1]. Only the class 7 = head boxes are used (default
      score ≥ 0.70; the training-data crops were built with ≥ 0.30).
   2. HFHPE (integrated ONNX): crop with the crop contract shared by training, evaluation and
-     deployment (expand the head bbox by 5% per side → long-side square, clamp at the image
-     border → resize to S×S), normalize as RGB, center05 (`x/127.5 − 1`) and get `cos_sin` [N, 6]
+     deployment (expand the head bbox by 5% per side → long-side square → resize to S×S). Where
+     the square leaves the image, the head is kept centered and the missing area is filled by
+     replicating the border pixels (the same border the training warps use); `--crop_border shift`
+     restores the former behavior of shifting the square inside the image, which moves heads at
+     the frame border off-center and lets a neighbor's head take the center. Normalize as RGB,
+     center05 (`x/127.5 − 1`) and get `cos_sin` [N, 6]
      and `kappa` [N, 3]. Angles are recovered as angle_deg = degrees(atan2(sin, cos)):
        - yaw:   0 = facing the camera, +90 = viewer's left, 180 = back of the head,
                 270 = viewer's right (mod 360)
@@ -449,10 +453,16 @@ class HeadDetector:
 # ---------------------------------------------------------------------------
 # Stage 2: HFHPE (yaw/pitch/roll of the head crops)
 # ---------------------------------------------------------------------------
-def square_crop(image: np.ndarray, box: DetectionBox, margin: float) -> np.ndarray:
+def square_crop(image: np.ndarray, box: DetectionBox, margin: float,
+                border: str = "replicate") -> np.ndarray:
     """Crop contract (shared by training, evaluation and deployment): expand each side by margin
-    → long-side square → clamp at the image border. If the image is smaller than the square,
-    zero-pad it to a square."""
+    → long-side square. At the image border:
+      - border="replicate" (default): keep the square centered on the head and fill the part
+        outside the image by replicating the border pixels (cv2.BORDER_REPLICATE, the border the
+        training warps use). Heads cut by the frame stay centered in the crop.
+      - border="shift": the former behavior — shift the square inside the image, which moves heads
+        at the frame border off-center (a neighbor's head can end up at the crop center). If the
+        image is smaller than the square, zero-pad it to a square."""
     H, W = image.shape[:2]
     x1, y1, x2, y2 = box.x1, box.y1, box.x2, box.y2
     w, h = x2 - x1, y2 - y1
@@ -462,6 +472,16 @@ def square_crop(image: np.ndarray, box: DetectionBox, margin: float) -> np.ndarr
     y2 += h * margin
     side = max(x2 - x1, y2 - y1)
     cx, cy = (x1 + x2) / 2, (y1 + y2) / 2
+    if border == "replicate":
+        s = max(1, round(side))
+        sx1, sy1 = round(cx - side / 2), round(cy - side / 2)
+        pad = max(0, -sx1, -sy1, sx1 + s - W, sy1 + s - H)
+        if pad == 0:
+            return image[sy1:sy1 + s, sx1:sx1 + s]
+        big = cv2.copyMakeBorder(image, pad, pad, pad, pad, cv2.BORDER_REPLICATE)
+        return big[sy1 + pad:sy1 + pad + s, sx1 + pad:sx1 + pad + s]
+    if border != "shift":
+        raise ValueError(f"unknown crop border mode {border!r} (expected 'replicate' or 'shift')")
     sx1 = min(max(cx - side / 2, 0), max(W - side, 0))
     sy1 = min(max(cy - side / 2, 0), max(H - side, 0))
     sx2 = min(sx1 + side, W)
@@ -494,7 +514,8 @@ class HeadPoseEstimator:
     IMAGENET_MEAN = np.array([0.485, 0.456, 0.406], dtype=np.float32) * 255.0
     IMAGENET_STD = np.array([0.229, 0.224, 0.225], dtype=np.float32) * 255.0
 
-    def __init__(self, model_path: Path, providers: list, crop_margin: float):
+    def __init__(self, model_path: Path, providers: list, crop_margin: float,
+                 crop_border: str = "replicate"):
         self.session = make_session(model_path, providers)
         self.providers = self.session.get_providers()
         inp = self.session.get_inputs()[0]
@@ -513,11 +534,12 @@ class HeadPoseEstimator:
         self.input_norm = ("imagenet" if "mean=" in meta.get("input.images", "")
                            else "center05")
         self.crop_margin = crop_margin
+        self.crop_border = crop_border
         self.last_inference_time = 0.0
         self._nonfinite_warned = False
 
     def preprocess(self, image_bgr: np.ndarray, box: DetectionBox) -> np.ndarray:
-        crop = resize_square(square_crop(image_bgr, box, self.crop_margin), self.size)
+        crop = resize_square(square_crop(image_bgr, box, self.crop_margin, self.crop_border), self.size)
         rgb = cv2.cvtColor(crop, cv2.COLOR_BGR2RGB).astype(np.float32)
         if self.input_norm == "imagenet":
             return ((rgb - self.IMAGENET_MEAN) / self.IMAGENET_STD).transpose(2, 0, 1)
@@ -777,7 +799,7 @@ class Pipeline:
         self.detect_all_classes = args.detect_all_classes
         self.detector = HeadDetector(det_path, detector_providers, args.head_score_threshold,
                                      args.detector_norm, detect_all_classes=self.detect_all_classes)
-        self.estimator = HeadPoseEstimator(pose_path, pose_providers, args.crop_margin)
+        self.estimator = HeadPoseEstimator(pose_path, pose_providers, args.crop_margin, args.crop_border)
         self.enable_mosaic = args.enable_mosaic
         self.draw_bbox = not args.disable_bbox
         self.draw_axes = not args.disable_axes
@@ -993,6 +1015,10 @@ def parse_args() -> argparse.Namespace:
                          "pose estimation still runs only on heads")
     ap.add_argument("--crop_margin", type=float, default=0.05,
                     help="head-bbox expansion ratio per side of the square crop (crop-contract value: 0.05)")
+    ap.add_argument("--crop_border", choices=["replicate", "shift"], default="replicate",
+                    help="how a crop square that leaves the image is handled: 'replicate' (default) keeps the head "
+                         "centered and fills the outside with replicated border pixels; 'shift' restores the former "
+                         "behavior of shifting the square inside the image (heads at the frame border become off-center)")
     ap.add_argument("--yaw_smooth_tau", type=float, default=0.0,
                     help="circular-EMA time constant in seconds for the yaw ring on video / camera input (display only; default 0 = no smoothing, e.g. 0.15 to enable)")
     ap.add_argument("--enable_mosaic", action="store_true",
@@ -1019,6 +1045,7 @@ def main() -> None:
           f"{'N-batch' if pipeline.estimator.dynamic_batch else 'batch 1'}, "
           f"{'with' if pipeline.estimator.has_kappa else 'no'} kappa, "
           f"input norm {pipeline.estimator.input_norm}, crop margin {pipeline.estimator.crop_margin}, "
+          f"crop border {pipeline.estimator.crop_border}, "
           f"providers {pipeline.estimator.providers}; "
           "yaw 0 = facing the camera, 90 = viewer's left; pitch + = up; roll + = image CCW)")
     print(f"Output directory: {output_dir}")

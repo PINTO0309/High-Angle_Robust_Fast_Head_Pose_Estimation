@@ -37,6 +37,7 @@ import numpy as np
 
 ROOT = Path(__file__).resolve().parent.parent
 SRC = ROOT / "data" / "yawpitchpose"
+COMPOSITE_SOURCES = {"synthetic_008"}  # composite crops (distractor heads): no source frame, skipped here
 CROPMETA_SOURCES = {"synthetic_004", "synthetic_005", "synthetic_006",
                     "synthetic_007"}
 SAVE_SIDE = 320
@@ -151,6 +152,10 @@ def main() -> None:
 
     for split in ["train", "val"]:
         rows = [json.loads(l) for l in open(SRC / f"{split}.jsonl")]
+        # rows derived from composite crops (synthetic_008, or any row carrying composite_of) have no
+        # source frame to cut a canvas from; the roll branch gets them through a separate replay path
+        n_comp = sum(r["source"] in COMPOSITE_SOURCES or "composite_of" in r for r in rows)
+        rows = [r for r in rows if not (r["source"] in COMPOSITE_SOURCES or "composite_of" in r)]
         if args.limit:
             rows = rows[:args.limit]
         tasks = []
@@ -174,7 +179,8 @@ def main() -> None:
                 src, sq = resolve_src(r), None
             tasks.append((r, str(op), args.factor, str(src), sq))
         print(f"{split}: {len(tasks)} to process / {skipped} skipped (existing)"
-              + (f" / no crop_meta {miss}" if miss else ""))
+              + (f" / no crop_meta {miss}" if miss else "")
+              + (f" / {n_comp} composite-crop rows skipped" if n_comp else ""))
         recs = []
         with ProcessPoolExecutor(max_workers=args.workers) as ex:
             for i, rec in enumerate(ex.map(process_one, tasks, chunksize=64)):

@@ -20,13 +20,20 @@ Resolving the source frame and the crop contract:
     from source_run / source_filename in crop_meta.jsonl and use the recorded,
     clamped crop contract head_square_crop_box_xyxy directly
 (<orig_name> = the crop name with the sNNN_ prefix removed)
+  - synthetic_008 (crops with other people's heads composited in, rows carrying composite_of) has no
+    source frame and is skipped; the roll branch gets it through a separate replay path
+  - synthetic_009 (crops with a static backlight + defocus applied, rows carrying backlit_of) is
+    skipped as well: the source frame exists, but the backlight would not be on the canvas
 
 Usage:
     uv run python scripts/build_roll_canvas_synth.py
 Output: data/roll_canvas_synth/ (images/ + train.jsonl + val.jsonl +
 labels_fixed.jsonl, each row with "canvas": f). Existing images are skipped on rerun.
+Rows merged by a separate path (PRESERVE_SOURCES, rows carrying backlit_of) are not built here,
+but they are carried over from the existing jsonl when it is rewritten (only while their image exists).
 """
 import argparse
+import collections
 import json
 import re
 from concurrent.futures import ProcessPoolExecutor
@@ -37,7 +44,9 @@ import numpy as np
 
 ROOT = Path(__file__).resolve().parent.parent
 SRC = ROOT / "data" / "yawpitchpose"
-COMPOSITE_SOURCES = {"synthetic_008"}  # composite crops (distractor heads): no source frame, skipped here
+COMPOSITE_SOURCES = {"synthetic_008", "synthetic_009"}  # composite crops (distractor heads) and static backlight + defocus (backlit_of): the result is not on the source frame, skipped here
+# rows merged by a separate path (merge_roll_canvas.py). This script does not build them, but keeps them when rewriting the jsonl
+PRESERVE_SOURCES = {"synthetic_009"}
 CROPMETA_SOURCES = {"synthetic_004", "synthetic_005", "synthetic_006",
                     "synthetic_007"}
 SAVE_SIDE = 320
@@ -128,6 +137,21 @@ def process_one(task: tuple[dict, str, float, str, list[float] | None]
             "contract_side": round(side, 1), "ring_padded": padded}
 
 
+def preserved_rows(out: Path, split: str) -> list[dict]:
+    """Rows merged by a separate path (PRESERVE_SOURCES / backlit_of) carried over from the existing <out>/<split>.jsonl."""
+    p = out / f"{split}.jsonl"
+    if not p.exists():
+        return []
+    kept = []
+    for l in open(p):
+        if not l.strip():
+            continue
+        r = json.loads(l)
+        if (r.get("source") in PRESERVE_SOURCES or "backlit_of" in r) and (out / r["image"]).exists():
+            kept.append(r)
+    return kept
+
+
 def main() -> None:
     ap = argparse.ArgumentParser()
     ap.add_argument("--out", type=str,
@@ -153,9 +177,10 @@ def main() -> None:
     for split in ["train", "val"]:
         rows = [json.loads(l) for l in open(SRC / f"{split}.jsonl")]
         # rows derived from composite crops (synthetic_008, or any row carrying composite_of) have no
-        # source frame to cut a canvas from; the roll branch gets them through a separate replay path
-        n_comp = sum(r["source"] in COMPOSITE_SOURCES or "composite_of" in r for r in rows)
-        rows = [r for r in rows if not (r["source"] in COMPOSITE_SOURCES or "composite_of" in r)]
+        # source frame to cut a canvas from; the roll branch gets them through a separate replay path.
+        # Static backlight rows (synthetic_009, or any row carrying backlit_of) are skipped for the same reason
+        n_comp = sum(r["source"] in COMPOSITE_SOURCES or "composite_of" in r or "backlit_of" in r for r in rows)
+        rows = [r for r in rows if not (r["source"] in COMPOSITE_SOURCES or "composite_of" in r or "backlit_of" in r)]
         if args.limit:
             rows = rows[:args.limit]
         tasks = []
@@ -192,6 +217,9 @@ def main() -> None:
         # can be re-recorded from the existing images, the meta is recomputed from
         # the row)
         by_name = {Path(x["image"]).name: x for x in recs}
+        keep = preserved_rows(out, split)
+        if keep:
+            print(f"{split}: carrying over {len(keep)} merged rows ({dict(collections.Counter(r['source'] for r in keep))})")
         with open(out / f"{split}.jsonl", "w") as f:
             for r in rows:
                 name = Path(r["image"]).name
@@ -204,6 +232,8 @@ def main() -> None:
                            "pitch_deg": r["pitch_deg"],
                            "source": r["source"], "canvas": args.factor}
                 f.write(json.dumps(rec, ensure_ascii=False) + "\n")
+            for r in keep:
+                f.write(json.dumps(r, ensure_ascii=False) + "\n")
     rows_all = []
     for split in ["train", "val"]:
         rows_all += [l for l in open(out / f"{split}.jsonl") if l.strip()]

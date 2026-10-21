@@ -224,6 +224,7 @@ output_dir/
 *.engine
 *.profile
 *.timing
+*.mp4
 runs/
 video/
 

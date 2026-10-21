@@ -900,7 +900,7 @@ def process_images(pipeline: Pipeline, images_dir: Path, output_dir: Path, save_
 
 
 def process_video(pipeline: Pipeline, video: str, output_dir: Path, save_raw: bool,
-                  disable_video_writer: bool, disable_imshow: bool) -> None:
+                  disable_video_writer: bool, disable_imshow: bool, disable_stats_text: bool = False) -> None:
     is_camera = is_int(video)
     cap = cv2.VideoCapture(int(video) if is_camera else video)
     if not cap.isOpened():
@@ -939,9 +939,10 @@ def process_video(pipeline: Pipeline, video: str, output_dir: Path, save_raw: bo
                 t_first = t_frame
             frame_index += 1
             rendered, results, infer_ms, total_ms = pipeline.run(frame)
-            put_text(rendered, f"infer: {infer_ms:.2f} ms", (10, 30))
-            put_text(rendered, f"total: {total_ms:.2f} ms", (10, 58))
-            put_text(rendered, f"heads: {len(results)}", (10, 86))
+            if not disable_stats_text:
+                put_text(rendered, f"infer: {infer_ms:.2f} ms", (10, 30))
+                put_text(rendered, f"total: {total_ms:.2f} ms", (10, 58))
+                put_text(rendered, f"heads: {len(results)}", (10, 86))
             if writer is None and not disable_video_writer:
                 fps = safe_fps(cap.get(cv2.CAP_PROP_FPS))
                 writer = create_video_writer(output_dir, rendered.shape[1], rendered.shape[0], fps)
@@ -1027,6 +1028,7 @@ def parse_args() -> argparse.Namespace:
     ap.add_argument("--disable_axes", action="store_true", help="do not draw the 3-axis pose overlay (X=red right cheek, Y=green chin, Z=blue nose)")
     ap.add_argument("--disable_angle_text", action="store_true", help="do not draw the per-head yaw/pitch/roll text")
     ap.add_argument("--disable_yaw_ring", action="store_true", help="do not draw the top-right yaw ring (the angles are still estimated and written to the JSON)")
+    ap.add_argument("--disable_stats_text", action="store_true", help="do not draw the top-left inference time / total time / head count text (video and camera input)")
     ap.add_argument("--disable_video_writer", action="store_true")
     ap.add_argument("--disable_imshow", action="store_true", help="do not open a window for video / camera input")
     ap.add_argument("--save_raw_predictions", action="store_true", help="save head boxes, angles and kappa as JSON")
@@ -1056,7 +1058,7 @@ def main() -> None:
         process_images(pipeline, images_dir, output_dir, args.save_raw_predictions)
     else:
         process_video(pipeline, args.video, output_dir, args.save_raw_predictions,
-                      args.disable_video_writer, args.disable_imshow)
+                      args.disable_video_writer, args.disable_imshow, args.disable_stats_text)
 
 
 if __name__ == "__main__":

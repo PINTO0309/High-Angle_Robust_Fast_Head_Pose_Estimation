@@ -66,7 +66,7 @@ A training, distillation and ONNX deployment pipeline for **one-pass yaw / pitch
 
     <img width="865" height="900" alt="image" src="https://github.com/user-attachments/assets/d97b609a-d2de-487c-811d-621344ffbaaf" />
 
-    https://github.com/user-attachments/assets/30357e8a-0323-409e-9b1f-7bd2014d134c
+    https://github.com/user-attachments/assets/bec52857-7f8e-4aa7-be9d-f4c4f1772ff0
 
 ## 1. Results at a glance
 

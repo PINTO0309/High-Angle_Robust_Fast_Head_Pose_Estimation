@@ -68,6 +68,10 @@ A training, distillation and ONNX deployment pipeline for **one-pass yaw / pitch
 
     https://github.com/user-attachments/assets/bec52857-7f8e-4aa7-be9d-f4c4f1772ff0
 
+- DEIMv2-X score threshold>=0.25 + DINOv3 320x320 - Testing simultaneous recognition in multi-person videos. 640x360
+
+  https://github.com/user-attachments/assets/38bbe79c-f2ad-4652-b3d0-f49ca08331f2
+
 ## 1. Results at a glance
 
 Validation MAAE (mean absolute angular error, degrees, lower is better) of the current generation (all four bodies retrained). Params and GMACs are counted on the exported ONNX graphs (`scripts/count_macs_onnx.py`; GFLOPs = 2 × GMACs). CPU ms = average latency of the batch-1 graph on an i9-10900K with onnxruntime 1.22 CPU EP, measured with [sit4onnx](https://github.com/PINTO0309/sit4onnx).

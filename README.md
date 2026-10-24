@@ -42,7 +42,7 @@ A training, distillation and ONNX deployment pipeline for **one-pass yaw / pitch
 
   https://github.com/user-attachments/assets/4982db26-7159-47f6-bdc2-2a93336ba703
 
-- **[October 23, 2026]** Tested with improvements to estimation stability under strong backlighting and in even darker environments. The room is completely dark, with the only light coming from the display of the PC I am using for work.
+- **[October 23, 2026]** Tested with improvements to estimation stability under strong backlighting and in even darker environments. The room is completely dark, with the only light coming from the display of the PC I am using for work. At the 00:12 mark in the video, all the lights in the room are turned off.
 
   https://github.com/user-attachments/assets/44dbddbb-1222-4608-8471-ee2c35ea4e72
 

@@ -42,6 +42,10 @@ A training, distillation and ONNX deployment pipeline for **one-pass yaw / pitch
 
   https://github.com/user-attachments/assets/4982db26-7159-47f6-bdc2-2a93336ba703
 
+- **[October 23, 2026]** Tested with improvements to estimation stability under strong backlighting and in even darker environments. The room is completely dark, with the only light coming from the display of the PC I am using for work.
+
+  https://github.com/user-attachments/assets/6e8f7d4c-fc26-48da-97fe-d5ee49e40e2d
+
   |Actual brightness|Exposure time: 205 ms|
   |:-:|:-:|
   |<img width="640" height="480" alt="mpv-shot0005" src="https://github.com/user-attachments/assets/bca402d9-da2a-4021-bab8-92191098876c" />|<img width="640" height="480" alt="mpv-shot0006" src="https://github.com/user-attachments/assets/17bac940-66db-4b82-bd9a-7082c2d85cb9" />|

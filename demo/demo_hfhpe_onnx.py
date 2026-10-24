@@ -518,7 +518,7 @@ class HeadPoseEstimator:
     IMAGENET_STD = np.array([0.229, 0.224, 0.225], dtype=np.float32) * 255.0
 
     def __init__(self, model_path: Path, providers: list, crop_margin: float,
-                 crop_border: str = "replicate"):
+                 crop_border: str = "replicate", max_batch: int = 0):
         self.session = make_session(model_path, providers)
         self.providers = self.session.get_providers()
         inp = self.session.get_inputs()[0]
@@ -538,6 +538,7 @@ class HeadPoseEstimator:
                            else "center05")
         self.crop_margin = crop_margin
         self.crop_border = crop_border
+        self.max_batch = max(0, int(max_batch))  # 0 = all heads of a frame in one pass
         self.last_inference_time = 0.0
         self._nonfinite_warned = False
 
@@ -558,10 +559,13 @@ class HeadPoseEstimator:
             return []
         batch = np.stack([self.preprocess(image_bgr, box) for box in heads]).astype(np.float32)
         t0 = time.perf_counter()
-        if self.dynamic_batch:
+        if self.dynamic_batch and (self.max_batch == 0 or len(batch) <= self.max_batch):
             cos_sin, kappa = self._run(batch)
         else:
-            outs = [self._run(batch[i:i + 1]) for i in range(len(batch))]
+            # fixed batch-1 graph: one head per pass; N-batch graph with --max_batch: chunks of
+            # at most max_batch heads (keeps a crowded frame within the GPU memory)
+            step = 1 if not self.dynamic_batch else self.max_batch
+            outs = [self._run(batch[i:i + step]) for i in range(0, len(batch), step)]
             cos_sin = np.concatenate([o[0] for o in outs])
             kappa = np.concatenate([o[1] for o in outs]) if self.has_kappa else None
         self.last_inference_time = time.perf_counter() - t0
@@ -889,7 +893,8 @@ class Pipeline:
         self.detect_all_classes = args.detect_all_classes
         self.detector = HeadDetector(det_path, detector_providers, args.head_score_threshold,
                                      args.detector_norm, detect_all_classes=self.detect_all_classes)
-        self.estimator = HeadPoseEstimator(pose_path, pose_providers, args.crop_margin, args.crop_border)
+        self.estimator = HeadPoseEstimator(pose_path, pose_providers, args.crop_margin, args.crop_border,
+                                           args.max_batch)
         self.enable_mosaic = args.enable_mosaic
         self.draw_bbox = not args.disable_bbox
         self.draw_axes = not args.disable_axes
@@ -1117,6 +1122,10 @@ def parse_args() -> argparse.Namespace:
                          "except face, eyes, nose, mouth and ears (age, gender, head direction and left/right "
                          "subclasses are also hidden); "
                          "pose estimation still runs only on heads")
+    ap.add_argument("--max_batch", type=int, default=0,
+                    help="N-batch pose graphs: run the heads of a frame in chunks of at most this many "
+                         "(0 = all heads in one pass). Use it when a crowded frame exhausts the GPU memory "
+                         "(e.g. 16 for the dinov3 320px graph on an 8 GB GPU); fixed batch-1 graphs ignore it")
     ap.add_argument("--crop_margin", type=float, default=0.05,
                     help="head-bbox expansion ratio per side of the square crop (crop-contract value: 0.05)")
     ap.add_argument("--crop_border", choices=["replicate", "shift"], default="replicate",

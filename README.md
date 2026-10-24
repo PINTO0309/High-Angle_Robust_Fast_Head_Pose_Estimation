@@ -545,6 +545,7 @@ ckpts/ models/ data/ runs/   weights, detector, datasets and training outputs (n
      |Yaw,Pitch|Roll|
     |:-:|:-:|
     |<img width="672" height="720" alt="val_preview_best" src="https://github.com/user-attachments/assets/947c747d-1792-4c64-9ac3-b594b9f20aa5" />|<img width="640" height="640" alt="preview_rotcrop" src="https://github.com/user-attachments/assets/39adf5f2-9f06-4cc8-b7a5-bc58a8a106ff" />|
+    <img width="900" alt="image" src="https://github.com/user-attachments/assets/6d7ae16f-953a-4e77-b4c3-4215a9ad23fe" />
 - Because the weights of the teacher model are extremely powerful, they are made available for download via a link in the article below, under the MIT License.
 - [506_HFHPE - Design of a Lightweight and Fast 6D Head Pose Estimation Model](https://note.com/pinto0309/n/n5be2ff7ec873?sub_rt=share_pw)
 - Technical explanation via video (Japanese audio, with subtitles.)

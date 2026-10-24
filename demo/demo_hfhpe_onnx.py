@@ -124,6 +124,9 @@ class HeadResult:
     pitch_deg: float             # positive = looking up (signed)
     roll_deg: float | None       # positive = image-CCW (signed). None for yaw/pitch-only graphs
     kappa: np.ndarray | None     # von Mises concentration of [yaw, pitch(, roll)]
+    yaw_raw: float | None = None     # unsmoothed angles (set only when --kappa_smooth_tau is active)
+    pitch_raw: float | None = None
+    roll_raw: float | None = None
 
 
 # ---------------------------------------------------------------------------
@@ -714,6 +717,89 @@ class YawSmoother:
         return float(np.degrees(np.arctan2(self.vec[1], self.vec[0])) % 360.0)
 
 
+class KappaSmoother:
+    """Per-head temporal smoothing of yaw / pitch / roll weighted by the model's confidence kappa.
+
+    Heads are associated across frames by bbox IoU (>= iou_thr, greedy, largest IoU first). Each
+    track keeps a unit vector per angle (circular EMA, so the 0/360 wrap-around is safe). The
+    observation gain is alpha * max(min_gain, min(1, kappa / kappa_ref)) with
+    alpha = 1 - exp(-dt / tau): a confident estimate (kappa >= kappa_ref) follows the usual EMA
+    with time constant tau, while a low-confidence estimate moves the state only a little and the
+    previous, more confident pose is kept (min_gain keeps a persistently uncertain track from
+    freezing). dt is the frame interval of the video (1 / fps), not wall-clock time, so the result
+    does not depend on the processing speed. Tracks unmatched for max_gap frames are dropped.
+    Unlike YawSmoother (ring display only) this changes the reported angles (axes, text and JSON);
+    the unsmoothed values are kept in the *_raw JSON fields.
+    """
+
+    def __init__(self, tau: float, kappa_ref: float = 50.0, max_gap: int = 5,
+                 iou_thr: float = 0.3, min_gain: float = 0.05):
+        self.tau = tau
+        self.kappa_ref = max(kappa_ref, 1e-6)
+        self.max_gap = max_gap
+        self.iou_thr = iou_thr
+        self.min_gain = min_gain
+        self.tracks: list[dict] = []   # {"box", "vec": {"yaw","pitch","roll"}, "gap"}
+
+    @staticmethod
+    def _vec(deg: float) -> np.ndarray:
+        return np.array([np.cos(np.radians(deg)), np.sin(np.radians(deg))], dtype=np.float64)
+
+    @staticmethod
+    def _deg(vec: np.ndarray) -> float:
+        return float(np.degrees(np.arctan2(vec[1], vec[0])))
+
+    def _blend(self, state: np.ndarray | None, deg: float | None, gain: float) -> np.ndarray | None:
+        if deg is None:
+            return None
+        v = self._vec(deg)
+        if state is None:
+            return v
+        w = (1.0 - gain) * state + gain * v
+        n = float(np.hypot(w[0], w[1]))
+        return v if n < 1e-6 else w / n
+
+    def update(self, results: list[HeadResult], dt: float) -> list[HeadResult]:
+        alpha = 1.0 if self.tau <= 0.0 else 1.0 - float(np.exp(-max(dt, 0.0) / self.tau))
+        # greedy association by IoU (largest first)
+        pairs = sorted(((_box_iou(t["box"], r.box), ti, ri) for ti, t in enumerate(self.tracks)
+                        for ri, r in enumerate(results)), reverse=True)
+        used_t: set[int] = set()
+        match: dict[int, int] = {}
+        for iou, ti, ri in pairs:
+            if iou < self.iou_thr:
+                break
+            if ti in used_t or ri in match:
+                continue
+            used_t.add(ti)
+            match[ri] = ti
+        out: list[HeadResult] = []
+        new_tracks: list[dict] = []
+        for ri, r in enumerate(results):
+            k = r.kappa
+            gains = []
+            for i in range(3):
+                kk = float(k[i]) if (k is not None and i < len(k)) else self.kappa_ref
+                gains.append(alpha * max(self.min_gain, min(1.0, kk / self.kappa_ref)))
+            angles = (r.yaw_deg, r.pitch_deg, r.roll_deg)
+            if ri in match:
+                t = self.tracks[match[ri]]
+                vec = {n: self._blend(t["vec"][n], a, g) for n, a, g in zip(("yaw", "pitch", "roll"), angles, gains)}
+            else:
+                vec = {n: self._blend(None, a, 1.0) for n, a in zip(("yaw", "pitch", "roll"), angles)}
+            new_tracks.append({"box": r.box, "vec": vec, "gap": 0})
+            out.append(HeadResult(box=r.box, yaw_deg=self._deg(vec["yaw"]) % 360.0,
+                                  pitch_deg=self._deg(vec["pitch"]),
+                                  roll_deg=None if vec["roll"] is None else self._deg(vec["roll"]),
+                                  kappa=r.kappa, yaw_raw=r.yaw_deg, pitch_raw=r.pitch_deg, roll_raw=r.roll_deg))
+        # keep unmatched tracks alive for a few frames (occlusion / missed detection)
+        for ti, t in enumerate(self.tracks):
+            if ti not in used_t and t["gap"] + 1 < self.max_gap:
+                new_tracks.append({**t, "gap": t["gap"] + 1})
+        self.tracks = new_tracks
+        return out
+
+
 def draw_yaw_ring(image: np.ndarray, results: Sequence[HeadResult],
                   ring_deg: float | None = None) -> None:
     """Draw a ring in the top-right corner showing the yaw of the largest head (HFHPE convention:
@@ -773,6 +859,10 @@ def results_to_records(results: Sequence[HeadResult]) -> list[dict]:
         "pitch_deg": round(r.pitch_deg, 2),
         "roll_deg": None if r.roll_deg is None else round(_signed(r.roll_deg), 2),
         "kappa": None if r.kappa is None else [round(float(k), 3) for k in r.kappa],
+        **({} if r.yaw_raw is None else {
+            "yaw_deg_raw": round(r.yaw_raw, 2),
+            "pitch_deg_raw": None if r.pitch_raw is None else round(r.pitch_raw, 2),
+            "roll_deg_raw": None if r.roll_raw is None else round(_signed(r.roll_raw), 2)}),
     } for r in results]
 
 
@@ -807,6 +897,11 @@ class Pipeline:
         self.draw_ring = not args.disable_yaw_ring
         self.yaw_smooth_tau = args.yaw_smooth_tau
         self.ring_smoother: YawSmoother | None = None  # set by process_video (video / camera only)
+        self.kappa_smooth_tau = args.kappa_smooth_tau
+        self.kappa_smooth_ref = args.kappa_smooth_ref
+        self.kappa_smooth_max_gap = args.kappa_smooth_max_gap
+        self.kappa_smoother: KappaSmoother | None = None  # set by process_video (video / camera only)
+        self.frame_dt = 0.0                                # frame interval in seconds (video / camera)
         self.warm_up()
 
     def warm_up(self) -> None:
@@ -822,6 +917,8 @@ class Pipeline:
         boxes = self.detector(image)
         heads = [box for box in boxes if box.class_id == HEAD_CLASS_ID]
         results = self.estimator(image, heads)
+        if self.kappa_smoother is not None:
+            results = self.kappa_smoother.update(results, self.frame_dt)
         infer_ms = (self.detector.last_inference_time + self.estimator.last_inference_time) * 1000.0
         rendered = draw_results(image, results, self.draw_bbox, self.draw_axes, self.draw_text,
                                 boxes=boxes if self.detect_all_classes else None,
@@ -921,6 +1018,12 @@ def process_video(pipeline: Pipeline, video: str, output_dir: Path, save_raw: bo
               f"{cap.get(cv2.CAP_PROP_FPS):g} fps (reported)")
     if pipeline.yaw_smooth_tau > 0.0:
         pipeline.ring_smoother = YawSmoother(pipeline.yaw_smooth_tau)
+    if pipeline.kappa_smooth_tau > 0.0:
+        pipeline.kappa_smoother = KappaSmoother(pipeline.kappa_smooth_tau, pipeline.kappa_smooth_ref,
+                                                pipeline.kappa_smooth_max_gap)
+        pipeline.frame_dt = 1.0 / safe_fps(cap.get(cv2.CAP_PROP_FPS))
+        print(f"Kappa smoothing: tau {pipeline.kappa_smooth_tau:g} s, kappa_ref {pipeline.kappa_smooth_ref:g}, "
+              f"frame interval {pipeline.frame_dt * 1000:.1f} ms, max gap {pipeline.kappa_smooth_max_gap} frames")
     writer = None
     pacer: RealTimePacer | None = None  # camera input: keep the recording in real time
     frame_index = 0
@@ -1022,6 +1125,15 @@ def parse_args() -> argparse.Namespace:
                          "behavior of shifting the square inside the image (heads at the frame border become off-center)")
     ap.add_argument("--yaw_smooth_tau", type=float, default=0.0,
                     help="circular-EMA time constant in seconds for the yaw ring on video / camera input (display only; default 0 = no smoothing, e.g. 0.15 to enable)")
+    ap.add_argument("--kappa_smooth_tau", type=float, default=0.0,
+                    help="per-head temporal smoothing of yaw / pitch / roll on video / camera input, weighted by the "
+                         "model's confidence kappa: circular EMA with this time constant in seconds of video time "
+                         "(default 0 = off, e.g. 0.2). Changes the drawn angles and the JSON (raw values kept as *_raw)")
+    ap.add_argument("--kappa_smooth_ref", type=float, default=50.0,
+                    help="kappa at which an observation gets the full EMA gain; lower kappa scales the gain down "
+                         "linearly (kappa / kappa_ref), so uncertain estimates barely move the smoothed pose")
+    ap.add_argument("--kappa_smooth_max_gap", type=int, default=5,
+                    help="frames a smoothed head track survives without a matching detection (IoU >= 0.3)")
     ap.add_argument("--enable_mosaic", action="store_true",
                     help="pixelate head bbox interiors after inference on the original image, before drawing bboxes and pose axes")
     ap.add_argument("--disable_bbox", action="store_true", help="do not draw bounding boxes (including --detect_all_classes)")

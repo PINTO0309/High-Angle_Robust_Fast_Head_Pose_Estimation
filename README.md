@@ -545,7 +545,7 @@ ckpts/ models/ data/ runs/   weights, detector, datasets and training outputs (n
      |Yaw,Pitch|Roll|
     |:-:|:-:|
     |<img width="672" height="720" alt="val_preview_best" src="https://github.com/user-attachments/assets/947c747d-1792-4c64-9ac3-b594b9f20aa5" />|<img width="640" height="640" alt="preview_rotcrop" src="https://github.com/user-attachments/assets/39adf5f2-9f06-4cc8-b7a5-bc58a8a106ff" />|
-- The weights for the teacher model are distributed under the `PINTO-CC-BY-4.0-License-Version-1.0` in the article below.
+- Because the teacher model's weights are exceptionally powerful, they are distributed under the `PINTO-CC-BY-4.0-License-Version-1.0` license, as described in the following article.
 - [506_HFHPE - Design of a Lightweight and Fast 6D Head Pose Estimation Model](https://note.com/pinto0309/n/n5be2ff7ec873?sub_rt=share_pw)
 - Technical explanation via video (Japanese audio, with subtitles.)
 
@@ -559,6 +559,7 @@ ckpts/ models/ data/ runs/   weights, detector, datasets and training outputs (n
 
 - Code: [MIT License](LICENSE) (Copyright (c) 2026 Katsuya Hyodo).
 - Weights: DINOv3 (Meta, DINOv3 License), vitt_distill and PP-HGNetV2 (DEIMv2, Apache-2.0) are neither bundled nor redistributed. Check the derived-work terms of these sources before distributing trained HFHPE weights or ONNX files.
+- Datasets: PINTO-CC-BY-4.0-License-Version-1.0. The `PINTO-CC-BY-4.0-License-Version-1.0` has substantially the same legal effect as the `CC-BY-4.0`.
 
 ## 10. Citation and acknowledgements
 

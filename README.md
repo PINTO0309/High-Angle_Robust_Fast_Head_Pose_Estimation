@@ -661,6 +661,13 @@ ckpts/ models/ data/ runs/   weights, detector, datasets and training outputs (n
 }
 ```
 
+**6924 by JIEtech** (ubivox 3d scanning technology)
+
+- https://sketchfab.com/3d-models/6924-2d5f7957342f45ff8dd245ec34825410
+- CC BY 4.0
+- https://creativecommons.org/licenses/by/4.0/.
+- Changes: scaled/aligned, textures resized where needed, lit and rendered, camera orbit and image roll, H.264 encoding.
+
 ### 10.3 Methods referenced (reimplemented from the papers; no code was copied)
 
 **BiternionNet** — the biternion output representation (unit `cos/sin` regression) and the von Mises loss used for every angle. The architectures are our own. Paper: https://lucasb.eyer.be/academic/biternions/biternions_gcpr15.pdf · Original implementation (MIT): https://github.com/lucasb-eyer/BiternionNet

@@ -20,6 +20,10 @@ A training, distillation and ONNX deployment pipeline for **one-pass yaw / pitch
 
   https://github.com/user-attachments/assets/145bd7ce-e9a9-4e54-b5dc-90e9bc217bb1
 
+- 3D model tests
+
+  https://github.com/user-attachments/assets/e2a9048a-f64d-49d0-8929-2dbe6e3f392d
+
 - Comparison of behavior with implementations from previous papers.
 
   |6DRepNet360<br>Contains non-commercial data contamination|HFHPE<br>No non-commercial data contamination|

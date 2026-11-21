@@ -11,6 +11,7 @@ A training, distillation and ONNX deployment pipeline for **one-pass yaw / pitch
 - **Avoiding License Contamination Through the Use of Non-Commercial Data.** Train the model without using any data restricted to non-commercial use. This is to avoid wasting time on pointless debates regarding whether the generated model is non-commercial. As a trade-off for that advantage, it is not possible to make a precise performance comparison with all previous paper implementations benchmarked using datasets such as 300W-LP, AFLW200-3D, BIWI, and CMU-Panoptic. It should be noted that for the 300W-LP, AFLW200-3D, BIWI, and CMU-Panoptic datasets, benchmark figures derived from existing implementations do not accurately reflect real-world performance due to significant deficiencies in head pose distribution, real-world head occlusion, and background context diversity.
 - Training data for yaw/pitch is **synthetic by gpt-image-2, plus 1,681 of the author's own self-portraits** (the SynthYawPitchPose dataset: 51,194 synthetic whole-head crops, 18.7k of them with large accessories such as masks, sunglasses and hats, every label reviewed by eye and 35.6k labels corrected by hand; plus 1,681 self-portrait crops, sources `synthetic_real_001` / `synthetic_real_002`, labeled with the teacher's pseudo-labels and corrected by hand where needed); the roll branch additionally adapts to real photographs whose roll ground truth is generated mechanically by rotation — no external pose label is ever used as a training target.
 - **Roll is decoupled from yaw/pitch, by design.** Synthesizing a head at a prescribed yaw and pitch while keeping the composition intact is not difficult once the right generation conditions are met, but roll is hard to express, and a roll twist skews the directions along which yaw and pitch are estimated. Only yaw and pitch are therefore prescribed strictly: every yaw/pitch image is generated upright (roll assumed to be 0°), and roll is learned on its own from upright crops rotated in-plane by a known angle, which makes the roll ground truth exact.
+- **[November 20, 2026] Joint yaw / pitch / roll models.** A second model family regresses yaw, pitch and roll from one backbone in a single pass, without the roll branch and the in-graph derotation (`hfhpe_vitt_ypr_kappa_*.onnx`, `hfhpe_dinov3_ypr_*.onnx`; section 1). Roll still covers the full 360° and the ONNX I/O contract is unchanged, so the demo accepts them as a drop-in (`-pm`). The two-stage models remain available.
 - **Occlusion diversity is generated, not only erased.** On top of the strictly prescribed yaw and pitch, the dataset emphasizes the diversity of head occlusion by accessories that are likely to occur in the real world. It contains a large number of pose–accessory combinations that hardly exist in public datasets, so that occlusion robustness does not rest solely on simplistic, unrealistic preprocessing such as Random Erasing or Cutout.
 
 > [!NOTE]
@@ -120,6 +121,30 @@ This is a benchmark based on the SynthYawPitchPose dataset; it does not utilize 
 | [hfhpe_yawnet](https://github.com/PINTO0309/High-Angle_Robust_Fast_Head_Pose_Estimation/releases/download/weights/yawnet_distill_128_yp_unified_v12.tar.gz) | MBConv | 128x128 | 1.6 | 0.101<br>0.202 | 2.6 | 5.22 | 7.54 | [2.83](https://github.com/PINTO0309/High-Angle_Robust_Fast_Head_Pose_Estimation/releases/download/weights/hfhpe_roll_128_unified_kd_vitl_canvas4_w100.tar.gz) |
 | [hfhpe_yawnet](https://github.com/PINTO0309/High-Angle_Robust_Fast_Head_Pose_Estimation/releases/download/weights/yawnet_distill_064_yp_unified_v12.tar.gz) | MBConv | 64x64 | 1.5 | 0.026<br>0.051 | 1.4 | 5.55 | 7.55 | [3.28](https://github.com/PINTO0309/High-Angle_Robust_Fast_Head_Pose_Estimation/releases/download/weights/hfhpe_roll_064_unified_kd_vitl_canvas4_w100.tar.gz) |
 
+**Joint yaw / pitch / roll body** (`hfhpe_vitt_ypr_kappa_*.onnx`, `hfhpe_dinov3_ypr_*.onnx`: one backbone regresses all three angles, so there is no roll branch and no in-graph derotation; the head outputs the same `cos_sin` (N,6) / `kappa` (N,3) as the integrated graphs). The three MAAE columns are measured on the upright validation crops; the last column is the same validation set rotated in-plane by θ ~ U[0°, 360°) on the 1.8× canvases (the roll ground truth is the applied θ), i.e. the full-circle protocol the models are trained for:
+
+| Model | Backbone | Input | Params<br>(M) | GMACs<br>GFLOPs | CPU<br>(ms) | MAAE<br>yaw | <br>pitch | <br>roll | full-circle rotation<br>yaw / pitch / roll |
+|---|---|--:|--:|--:|--:|--:|--:|--:|--:|
+| hfhpe_dinov3_ypr | ViT-L/16 | 320x320 | 304.2 | 130.7<br>261.4 | 344 | 0.43 | 0.40 | 0.60 | 0.46 / 0.42 / 0.57 |
+| [hfhpe_vitt_ypr](https://github.com/PINTO0309/High-Angle_Robust_Fast_Head_Pose_Estimation/releases/download/weights/vitt_distill_128_ypr_unified_v19_r180_lr2e4.tar.gz) | ViT-T/16 | 128x128 | 5.6 | 0.374<br>0.748 | 3.8 | 1.65 | 1.70 | 1.56 | 1.65 / 1.62 / 2.01 |
+| [hfhpe_vitt_ypr](https://github.com/PINTO0309/High-Angle_Robust_Fast_Head_Pose_Estimation/releases/download/weights/vitt_distill_064_ypr_unified_v19_r180_lr2e4.tar.gz) | ViT-T/16 | 64x64 | 5.6 | 0.094<br>0.188 | 1.8 | 2.18 | 2.20 | 1.84 | 2.11 / 2.09 / 2.36 |
+
+Compared with the two-stage rows above, the joint ViT-T models trade about 1° of yaw / pitch on the upright set for a roll that is estimated by the same backbone (1.6–1.8° upright, 2.0–2.4° over the full circle instead of 2.8–3.3° for the roll branch) and for a graph without GridSample. The error is flat over the applied rotation: by |θ| band (0–15 / 15–30 / 30–45 / 45–60 / 60–90 / 90–135 / 135–180°) the 128 px student scores yaw 1.58 / 1.59 / 1.77 / 1.47 / 1.71 / 1.60 / 1.72 and pitch 1.66 / 1.56 / 1.49 / 1.60 / 1.65 / 1.62 / 1.65, the 64 px student yaw 2.15 / 1.97 / 2.23 / 1.95 / 2.19 / 2.12 / 2.09 and pitch 2.05 / 2.07 / 2.20 / 2.11 / 2.02 / 2.11 / 2.09; the roll MAAE per 30° bin of θ stays within 1.92–2.17° (128 px) and 2.11–2.54° (64 px). The |yaw| and pitch bins of the upright set (`scripts/eval_pose_bins.py`, same bins as the body-only tables below):
+
+| Model | \|yaw\|<br>0–30 | <br>30–60 | <br>60–90 | <br>90–120 | <br>120–150 | <br>150–180 |
+|---|--:|--:|--:|--:|--:|--:|
+| dinov3-320-ypr | 0.43 / 0.44 | 0.39 / 0.34 | 0.43 / 0.39 | 0.39 / 0.38 | 0.49 / 0.44 | 0.43 / 0.38 |
+| vitt-128-ypr | 1.69 / 1.81 | 1.39 / 1.34 | 1.61 / 1.61 | 1.40 / 1.51 | 1.96 / 1.95 | 1.60 / 1.66 |
+| vitt-064-ypr | 2.05 / 2.24 | 1.79 / 1.64 | 2.11 / 2.12 | 1.80 / 1.97 | 2.57 / 2.55 | 2.19 / 2.05 |
+
+| Model | pitch<br>−120..−90 | <br>−90..−60 | <br>−60..−30 | <br>−30..0 | <br>0..30 | <br>30..60 | <br>60..90 | <br>90..120 |
+|---|--:|--:|--:|--:|--:|--:|--:|--:|
+| dinov3-320-ypr | 0.39 / 0.60 | 0.47 / 0.46 | 0.43 / 0.38 | 0.42 / 0.37 | 0.43 / 0.39 | 0.45 / 0.45 | 0.43 / 0.47 | 0.47 / 0.69 |
+| vitt-128-ypr | 1.52 / 2.13 | 1.77 / 1.64 | 1.59 / 1.56 | 1.60 / 1.66 | 1.71 / 1.72 | 1.69 / 1.79 | 1.84 / 2.27 | 1.49 / 2.31 |
+| vitt-064-ypr | 1.86 / 2.87 | 2.12 / 1.99 | 2.11 / 1.96 | 2.12 / 2.19 | 2.22 / 2.20 | 2.18 / 2.30 | 2.07 / 2.87 | 1.85 / 2.82 |
+
+**TensorRT FP16.** The released joint graphs are exported for FP16 deployment: a factor of 1/64 is folded into the `cos`/`sin` rows of the last head layer so that the unit-vector normalization (`ReduceL2`) no longer saturates in FP16, and for `hfhpe_dinov3_ypr` the residual stream of the ViT-L backbone is scaled by 1/64 as well (every `LayerNormalization` epsilon by 1/64²), because the backbone's register tokens carry activations of about 1.9e5, three times the FP16 range, which turns a plain FP16 engine into NaN. Both folds leave the FP32 outputs unchanged (onnxruntime difference 0). Verified with TensorRT 10.14.1 on an RTX 3070 against onnxruntime FP32: no non-finite outputs, maximum angle difference 0.26° (128 px), 0.33° (64 px) and 0.11° (320 px); batch-1 latency 0.42 / 0.39 / 6.4 ms (FP32: 0.63 / 0.55 / 21.4 ms).
+
 **Accuracy by pose bin (body-only graphs, validation set).** MAAE in degrees, each cell is `yaw / pitch`; the bins are the ground-truth |yaw| (frontal 0° to the back of the head 180°, left and right folded together) and the ground-truth pitch. The last row is the number of validation crops per bin (`scripts/eval_pose_bins.py`).
 
 | Model | \|yaw\|<br>0–30 | <br>30–60 | <br>60–90 | <br>90–120 | <br>120–150 | <br>150–180 |
@@ -174,7 +199,7 @@ Pitch MAAE (degrees):
 
 Observations: motion blur is the main weakness; on a 64 px input the 21 px blur spans a third of the crop, hence the extreme rows (as noted above, the degradations are applied in input pixels, so the 64 px rows are not comparable with the 128 / 320 px rows). The color-temperature shifts (warm / cool) cost the ViT-T and PP-HGNetV2 students 35–100 %, while the MBConv student moves by only a few percent; models with small absolute errors naturally show larger relative changes. Gamma, grayscale and JPEG recompression are comparatively mild for every model.
 
-**How to read these numbers (important):** the models are trained with `--unified` (train + validation merged on purpose), so the yaw/pitch values above measure how well each model fits the training distribution and **must not be compared with published benchmark results**. They are selection metrics, useful for comparing the rows against each other. The yaw/pitch columns are the same in both tables because the roll branch does not change the body; the integrated table adds the roll estimate, the derotation and their cost. The roll column is the roll branch — a YawNet w1.0 (0.77M) distilled online from a DINOv3 ViT-L/16 roll teacher trained at 320×320, run at 64×64 for the 64 px students and at 128×128 for hfhpe_dinov3 and the 128 px hfhpe_vitt / hfhpe_hgnetv2 / hfhpe_yawnet — evaluated on **wedge-free canvas rotations** of the validation crops, an honest protocol in which the four corners are filled with real context pixels instead of border replication.
+**How to read these numbers (important):** the models are trained with `--unified` (train + validation merged on purpose), so the yaw/pitch values above measure how well each model fits the training distribution and **must not be compared with published benchmark results**. They are selection metrics, useful for comparing the rows against each other. The yaw/pitch columns are the same in both tables because the roll branch does not change the body; the integrated table adds the roll estimate, the derotation and their cost. The roll column is the roll branch — a YawNet w1.0 (0.77M) distilled online from a DINOv3 ViT-L/16 roll teacher trained at 320×320, run at 64×64 for the 64 px students and at 128×128 for hfhpe_dinov3 and the 128 px hfhpe_vitt / hfhpe_hgnetv2 / hfhpe_yawnet — evaluated on **wedge-free canvas rotations** of the validation crops, an honest protocol in which the four corners are filled with real context pixels instead of border replication. The joint rows above are measured under the same convention: upright crops for the three MAAE columns, and canvas rotations over the full circle for the last column.
 
 ## 2. Features
 
@@ -184,6 +209,7 @@ Observations: motion blur is the main weakness; on a 64 px input the 21 px blur 
 - **Online teacher → student distillation** (`scripts/distill_yawnet.py`): the teacher (DINOv3 ViT-L/16 @320) is run on the fly on the same crops as the student (KD 0.7 / GT 0.3), with WSD learning-rate schedule, EMA, inverse-frequency yaw balancing and warm-start (`--init-student`) between generations.
 - **Roll branch with label-free real-image adaptation** (`scripts/train_hfhpe_roll.py`): roll GT is the exact synthetic rotation θ applied at load time, so any upright crop is a training sample. Real photographs are re-cropped with the same DEIMv2 detector as deployment and mixed in via `--extra-data` — their pose labels are never used as targets. This removed the catastrophic ~180° roll failures on real photos. Supports ViT-T (`--arch vitt`) and DINOv3 ViT-L/16 (`--arch vitl`, 320 px) roll teachers, online KD (`--teacher`; with a higher-resolution teacher the student receives an area-downscaled copy of the same augmented view) and warm-start (`--init-student`). The deployed branch is a YawNet w1.0 distilled from the ViT-L teacher.
 - **Wedge-free canvas rotation** (`scripts/build_roll_canvas_synth.py` + the `canvas` field of `roll_dataset.py`): rotating a square crop normally leaves border-replication wedges in the corners whose orientation leaks the applied angle (a shortcut the model learns to read). The canvas build stores a 1.8× context canvas around the identical crop contract; at train time the central contract region is rotated onto the full output while the corners are filled from the real surrounding ring. θ=0 reproduces the deployed crop exactly, so the runtime contract is unchanged.
+- **Joint yaw / pitch / roll head** (`*_ypr_*` models): one backbone with a 9-output head (three biternions + three κ) regresses all angles at once, so the graph has neither a roll branch nor a GridSample derotation. The training crops are the SynthYawPitchPose canvases rotated in-plane by θ ~ U[0°, 360°) at load time (the roll ground truth is the applied θ, exact by construction, so every upright crop is a roll sample); with probability 0.7 the background outside a person mask is rotated by an independent angle, so the roll cannot be read from the orientation of the background. The teacher is a DINOv3 ViT-L/16 @320 with the same head, the students are distilled online from it (KD 0.7 / GT 0.3, WSD, EMA). The 128 px ViT-T was first trained with the rotation limited to ±90° (600 epochs) and then fine-tuned over the full circle (300 epochs); the 64 px ViT-T was warm-started from it. The training options of the joint head are not part of this repository yet; the exported graphs are.
 - **One-pass HFHPE composition** (`scripts/export_hfhpe.py`): roll estimate → GridSample derotation → normalization conversion → yaw/pitch body, fused into a single ONNX graph.
 - **κ-gated derotation (optional)** (`--roll-gate sigmoid|relu`): when the roll confidence κ_roll falls below a threshold τ, the in-graph derotation is blended toward the identity rotation, preventing a wrong large-angle derotation from corrupting the yaw/pitch body. Built from Sub/Mul/Sigmoid/Relu/Clip/Sqrt only — no Where/Greater/Cast — for edge-runtime compatibility. The `cos_sin` / `kappa` outputs always stay the raw estimates.
 - **Verified ONNX export** (`scripts/export_onnx.py`): onnxslim → onnxsim → graph canonicalization → torch/onnxruntime parity → fixed batch-1 → N-batch conversion with batch 1/2/3 agreement checks → machine audit → I/O-contract metadata injection (readable in Netron).
@@ -209,6 +235,8 @@ output  cos_sin  float32 [N, 6]   # [cos_yaw, sin_yaw, cos_pitch, sin_pitch, cos
 # von Mises concentration = confidence per angle (~1e-3 ... 100)
 output  kappa    float32 [N, 3]   # [kappa_yaw, kappa_pitch, kappa_roll]
 ```
+
+The joint graphs (`hfhpe_vitt_ypr_kappa_*.onnx` at S = 64 / 128, `hfhpe_dinov3_ypr_*.onnx` at S = 320) use exactly the same I/O contract. They estimate roll directly instead of derotating, so the input is the detected crop as is, whatever its in-plane rotation. `hfhpe_dinov3_ypr_*` expects ImageNet-normalized input like the dinov3 yaw/pitch-only graph (the demo reads the normalization from the ONNX metadata); the ViT-T joint graphs use center05.
 
 Angle convention (also written into every ONNX file as metadata):
 
@@ -239,6 +267,8 @@ uv sync --frozen --no-group ort --group tensorrt   # alternative: onnxruntime-gp
 | `ckpts/vitt_distill.pt` | Initial weights of the ViT-T/16 student | ImageNet-pretrained weights distributed with DEIMv2 (Apache-2.0) |
 | `ckpts/PPHGNetV2_B0_stage1.pth` | Initial backbone weights of the CNN student | ImageNet-pretrained weights distributed with DEIMv2 (Apache-2.0) |
 | `models/deimv2_wholebody49_boxes_only.onnx` | Head detection for dataset building, the crop contract and evaluation | [DEIMv2-Wholebody49](https://github.com/PINTO0309/PINTO_model_zoo/tree/main/488_DEIMv2-Wholebody49) (Apache-2.0) |
+| `models/deimv2_dinov3_s_wholebody49_boxes_only.onnx`, `models/deimv2_hgnetv2_n_wholebody49_boxes_only.onnx` | Demo detectors (default: `dinov3_s`); TensorRT-repaired graphs, see section 6.1 | as above |
+| `models/deimv2_wholebody49_boxes_only_mixed_fp16.onnx`, `models/deimv2_dinov3_s_wholebody49_boxes_only_mixed_fp16.onnx` | Mixed-precision copies of the two graphs above for the native TensorRT path (`--detector_device tensorrt_native`) and `trtexec --stronglyTyped`; section 6.1 | as above |
 
 ### 4.2 Data (`data/`, not bundled)
 
@@ -478,6 +508,21 @@ uv run --no-group ort --group tensorrt python demo/demo_hfhpe_onnx.py \
 --detector_device cuda \
 --pose_device tensorrt
 
+# native TensorRT for the detector (TensorRT builder + runtime, no onnxruntime): a mixed-precision
+# detector graph is built STRONGLY_TYPED, cached under models/trt_cache/native_trt-*/ and reused
+uv run python demo/demo_hfhpe_onnx.py \
+-v 0 \
+-o output_dir \
+-dm models/deimv2_wholebody49_boxes_only_mixed_fp16.onnx \
+--detector_device tensorrt_native
+
+# ready-built detector engine (e.g. from trtexec --stronglyTyped); -dm names the graph it was built from
+uv run python demo/demo_hfhpe_onnx.py \
+-v 0 \
+-o output_dir \
+-dm models/deimv2_wholebody49_boxes_only.onnx \
+--detector_engine models/trt_cache/wb49_mixed.engine
+
 # CPU for both stages
 uv run python demo/demo_hfhpe_onnx.py \
 -v 0 \
@@ -495,6 +540,12 @@ uv run python demo/demo_hfhpe_onnx.py \
 # swap the pose model
 uv run python demo/demo_hfhpe_onnx.py \
 -pm models/hfhpe_hgnetv2_Nx3x64x64.onnx \
+-v 0 \
+-o output_dir
+
+# joint yaw/pitch/roll graph (one backbone, no roll branch, no in-graph derotation; N-batch)
+uv run python demo/demo_hfhpe_onnx.py \
+-pm models/hfhpe_vitt_ypr_kappa_Nx3x128x128.onnx \
 -v 0 \
 -o output_dir
 
@@ -522,9 +573,98 @@ Defaults: detector `models/deimv2_dinov3_s_wholebody49_boxes_only.onnx`, pose `m
 
 The detector graph is pruned at load time to the nodes that feed `label_xyxy_score`. The `*_boxes_only.onnx` files still carry the instance-mask branch of the graphs they were derived from (only the `masks` output was removed); its `Einsum` runs over the top-K rows of class 0 (body) and receives zero-size tensors on frames without any such row, e.g. extremely dark frames, which crashes onnxruntime (CUDA EP: `CUBLAS_STATUS_INVALID_VALUE` at `/postprocessor/Einsum`, CPU EP: segmentation fault). The pruned graph produces identical `label_xyxy_score` values and runs about 5% faster.
 
-Execution providers are selected independently with `--detector_device` (default: `cuda`) and `--pose_device` (default: CUDA if available, otherwise CPU). Both accept `cpu`, `cuda`, `cuda:0` or `tensorrt`. The existing `-d` / `--device` flags are aliases for `--pose_device` and now affect only the pose estimator; use `--detector_device tensorrt --pose_device tensorrt` for TensorRT on both stages, or `--detector_device cpu --pose_device cpu` for CPU on both. TensorRT falls back to CUDA (when available), then CPU; CUDA falls back to CPU for unsupported operations. `--inference_type` and `--trt_cache_dir` apply to whichever stages use TensorRT.
+Execution providers are selected independently with `--detector_device` (default: `cuda`) and `--pose_device` (default: CUDA if available, otherwise CPU). Both accept `cpu`, `cuda`, `cuda:0` or `tensorrt`. The existing `-d` / `--device` flags are aliases for `--pose_device` and now affect only the pose estimator; use `--detector_device tensorrt --pose_device tensorrt` for TensorRT on both stages, or `--detector_device cpu --pose_device cpu` for CPU on both. TensorRT falls back to CUDA (when available), then CPU; CUDA falls back to CPU for unsupported operations. `--inference_type` and `--trt_cache_dir` apply to whichever stages use TensorRT. `--inference_type fp32` keeps the TensorRT EP engine in FP32 (TF32, no FP16 flag).
+
+**Native TensorRT for the detector.** `--detector_device tensorrt_native` runs the detector with the TensorRT builder and runtime directly instead of the onnxruntime TensorRT EP. The engine is built from the `-dm` graph and cached under `--trt_cache_dir` (`native_trt-<TensorRT version>_sm<cc>/<graph>_<mode>_<hash>.engine`; an engine runs only on the TensorRT version and GPU that built it), or a ready-built engine is loaded with `--detector_engine` (`-dm` then still names the graph it was built from, which decides the input normalization). A graph that carries explicit FP16 types (the `*_mixed_fp16.onnx` detector exports) is built STRONGLY_TYPED, i.e. with the per-tensor types as written; a plain graph follows `--inference_type` (`fp32`, `fp16`, `bf16`; `auto` means fp16 on this path, `int8` is not supported). This is the only way to keep selected layers in FP32 inside an FP16 engine: the onnxruntime TensorRT EP accepts neither layer precision constraints nor strongly typed networks, and a mixed-precision graph passed to the EP is *worse* than the plain one because its casts are dropped. The path needs the TensorRT Python bindings of the libnvinfer version the EP already loads (bindings only, e.g. `uv pip install --index-url https://pypi.nvidia.com --extra-index-url https://pypi.org/simple --index-strategy unsafe-best-match 'tensorrt-cu12-bindings==10.14.1.*'` for TensorRT 10.14.1); when the import fails, the demo prints the version to install. Device buffers are torch CUDA tensors; the detector runs one frame per call, so dynamic-batch graphs are built with a 1/1/1 profile. On an RTX 3070 the first run builds the engine in about 1–3 minutes (2 minutes for the mixed `deimv2_wholebody49` graph); later runs load it from the cache. Checked on 24 frames of the test clips against the CUDA EP (head boxes, IoU ≥ 0.5): 99.1% agreement for the strongly typed mixed engine, 99.6% for FP32 engines (native or EP), 98.6% for the HGNetV2-N FP16 engine.
 
 `--detect_all_classes` draws bounding boxes for non-attribute detector classes with a score at or above `--head_score_threshold`, except face (16), eyes (17), nose (18), mouth (19) and ears (20), whose boxes are hidden to keep the head-pose axes clear. Age (1–2), gender (3–4), head direction (8–15) and left/right subclasses (23–24, 27–28, 30–31, 33–34, 37–38, 40–41, 43–44, 46–47) are also omitted because they share their parent class's box in the [Wholebody49 annotation definition](https://github.com/PINTO0309/PINTO_model_zoo/tree/main/488_DEIMv2-Wholebody49#2-annotation). Head (7) boxes remain visible and keep their green color; other classes use a fixed palette of bright colors selected by class ID, with a black outline for visibility on light backgrounds. Pose estimation, angle overlays, the yaw ring and saved pose JSON still use only head detections (class 7). `--disable_bbox` and the `b` key hide/show all bounding boxes in this mode. Without the flag, only head boxes are drawn.
+
+### 6.1 Detector precision: the measured options
+
+The demo does not pick a precision for you. Every path below was measured the same way, so that the trade-off between agreement with FP32 and latency can be decided per deployment.
+
+- **Setup.** RTX 3070, TensorRT 10.14.1 (10.16.1 reproduces every row within 0.6 pt), onnxruntime-gpu 1.22.0 (1.32.0 gives the same numbers within 0.2 pt on both the CUDA and the TensorRT EP), 40 frames sampled from the test clips at the 640×640 detector input.
+- **Reference.** The same graph run by onnxruntime on the CPU in FP32.
+- **Agreement.** Detection level: a detection counts as matched when the reference holds a detection of the same class with IoU ≥ 0.5; both sides are cut at score 0.35. Each cell gives two numbers, all 49 classes / head class (7) only. The head number is the one that matters for the pose stage (the demo keeps heads at score ≥ 0.70 by default).
+- **What a mismatch is.** In every row below the box coordinates agree within 0.06 px, so a mismatch is a score crossing the 0.35 threshold, not a box that moved: 97.5% means that 2.5% of the detections near the threshold appear or disappear and nothing else changes. No configuration in the tables produces non-finite values.
+- **Latency.** Batch 1 on the RTX 3070. TensorRT rows: engine execution time (median of `trtexec --loadEngine`). CUDA EP rows: median of onnxruntime `session.run`, which includes the host ↔ device copies, so it is not directly comparable with the engine times.
+- **Flags.** `--inference_type` is written out in every row because its default `auto` means FP16 with the default onnxruntime group and BF16 with the `tensorrt` group (onnxruntime-gpu 1.26); BF16 was not part of this comparison.
+
+`deimv2_dinov3_s_wholebody49_boxes_only.onnx` (default detector, DINOv3-S/16 backbone):
+
+| Path | Demo flags | Agreement all / head | ms |
+|---|---|---|--:|
+| CUDA EP, FP32 (default) | none | 99.6% / 99.8% | 19.2 |
+| TensorRT EP, FP32 | `--detector_device tensorrt --inference_type fp32` | 99.4% / 99.6% | 13.7 |
+| TensorRT EP, FP16 | `--detector_device tensorrt --inference_type fp16` | 97.4% / 99.1% | 4.0 |
+| native TensorRT, FP32 | `--detector_device tensorrt_native --inference_type fp32` | 100% / 100% | 13.7 |
+| native TensorRT, FP16 | `--detector_device tensorrt_native --inference_type fp16` | 97.5% / 98.9% | 4.0 |
+| native TensorRT, mixed graph (decoder + post-processing FP32, the rest FP16), strongly typed | `-dm models/deimv2_dinov3_s_wholebody49_boxes_only_mixed_fp16.onnx --detector_device tensorrt_native` | 98.1% / 99.1% | 7.4 |
+
+`deimv2_wholebody49_boxes_only.onnx` (DINOv3-S/16 backbone, 1240 queries, dynamic batch; the detector used for dataset building and evaluation):
+
+| Path | Demo flags (all with `-dm models/deimv2_wholebody49_boxes_only.onnx`) | Agreement all / head | ms |
+|---|---|---|--:|
+| CUDA EP, FP32 | none | 99.6% / 99.9% | 45.2 |
+| TensorRT EP, FP32 | `--detector_device tensorrt --inference_type fp32` | 99.4% / 100% | 34.7 |
+| TensorRT EP, FP16 | `--detector_device tensorrt --inference_type fp16` | **77.3% / 90.8%**, not usable | 9.2 |
+| native TensorRT, FP32 | `--detector_device tensorrt_native --inference_type fp32` | 100% / 100% | 34.7 |
+| native TensorRT, FP16 (plain graph) | `--detector_device tensorrt_native --inference_type fp16` | **77.4% / 91.0%**, not usable | 9.2 |
+| native TensorRT, mixed graph (backbone block 0 FP32, the rest FP16), strongly typed | `-dm models/deimv2_wholebody49_boxes_only_mixed_fp16.onnx --detector_device tensorrt_native` | 98.5% / 99.6% | 10.5 |
+
+The FP16 collapse of this graph has one cause: the attention logits of the first DINOv3 block reach 1.5e5 (an attention sink), beyond the FP16 range of 65504. Keeping the decoder in FP32 does not help (77.6%); keeping block 0 in FP32 recovers 98.5% at FP16 speed. A fully FP16 engine of this graph reaches 95.4% only with TensorRT 11 (below).
+
+`deimv2_hgnetv2_n_wholebody49_boxes_only.onnx` (HGNetV2-N CNN backbone, the lightest):
+
+| Path | Demo flags (all with `-dm models/deimv2_hgnetv2_n_wholebody49_boxes_only.onnx`) | Agreement all / head | ms |
+|---|---|---|--:|
+| CUDA EP, FP32 | none | 99.6% / 99.8% | 8.5 |
+| TensorRT EP, FP32 | `--detector_device tensorrt --inference_type fp32` | 99.6% / 99.8% | 5.3 |
+| TensorRT EP, FP16 | `--detector_device tensorrt --inference_type fp16` | 97.8% / 98.4% | 2.1 |
+| native TensorRT, FP32 | `--detector_device tensorrt_native --inference_type fp32` | 100% / 100% | 5.3 |
+| native TensorRT, FP16 | `--detector_device tensorrt_native --inference_type fp16` | 97.7% / 98.4% | 2.1 |
+
+No mixed graph is shipped for this detector: a decoder kept in FP32 measured 98.2% / 98.6% at 4.3 ms, +0.5 pt for twice the FP16 time, so the choice is FP16 or FP32.
+
+**Reading the tables.**
+
+- Agreement first: the CUDA EP (default) or TensorRT in FP32, with any detector. Native TensorRT FP32 reproduces the reference exactly; the TensorRT EP computes FP32 as TF32, hence 99.4–99.6%.
+- Latency first: `hgnetv2_n` in FP16 (2.1 ms, head 98.4%) or the default `dinov3_s` in FP16 (4.0 ms, head 99.1%), both through the TensorRT EP with nothing extra to install.
+- `wholebody49` runs in FP16 only through its mixed graph on the native path (10.5 ms, head 99.6%); the plain graph in FP16 is not usable on any TensorRT 10 path.
+- The `*_mixed_fp16.onnx` graphs are for the native path and `trtexec --stronglyTyped` only. Passed to the onnxruntime TensorRT EP, their casts are dropped and they score below the plain graph (63% for `wholebody49`).
+
+The same engines can be built without the demo and loaded with `--detector_engine`. Do not cap `--memPoolSize`: with a 4 GiB workspace cap the builds of this graph fail with `Could not find any implementation for node {ForeignNode[...]}`.
+
+```bash
+# TensorRT 10.14.1; the shape flags are needed for the dynamic-batch wholebody49 graph only
+SH='--minShapes=images:1x3x640x640 --optShapes=images:1x3x640x640 --maxShapes=images:1x3x640x640'
+
+# mixed graph, strongly typed (98.5% / 99.6%, 10.5 ms)
+trtexec --onnx=models/deimv2_wholebody49_boxes_only_mixed_fp16.onnx --stronglyTyped $SH --saveEngine=wb49_mixed.engine
+
+# same effect from the plain graph: pin the four block-0 attention nodes to FP32 (98.1% / 99.6%, 10.0 ms)
+N4='/model/backbone/blocks.0/attn/Mul_8:fp32,/model/backbone/blocks.0/attn/Mul_9:fp32,/model/backbone/blocks.0/attn/MatMul:fp32,/model/backbone/blocks.0/attn/Softmax:fp32'
+trtexec --onnx=models/deimv2_wholebody49_boxes_only.onnx --fp16 --precisionConstraints=obey \
+--layerPrecisions="$N4" --layerOutputTypes="$N4" $SH --saveEngine=wb49_fp16_pin.engine
+
+uv run python demo/demo_hfhpe_onnx.py \
+-v 0 \
+-o output_dir \
+-dm models/deimv2_wholebody49_boxes_only.onnx \
+--detector_engine wb49_mixed.engine
+```
+
+**Mixed-precision graphs through onnxruntime (measured, not wired into the demo).** The TensorRT EP of onnxruntime-gpu 1.22–1.32 is weakly typed: it links TensorRT 10, ignores the per-tensor types of a mixed graph and offers no layer-precision control, so through it `wholebody49` is FP32-only. onnxruntime-gpu 1.32.0 changes nothing here; it needs Python ≥ 3.11 and is a CUDA 13 build (it ran on the CUDA 12 driver 580 of the test machine with the pip CUDA 13.5 runtime and reproduced the 1.22 numbers). Two routes do honor the types. Both were measured with the same frames and reference; ms is the onnxruntime `session.run` median at batch 1:
+
+| Route | Install | `wholebody49` mixed (block 0 FP32) | `dinov3_s` mixed (decoder FP32) | `hgnetv2_n` all FP16 | Notes |
+|---|---|---|---|---|---|
+| onnxruntime 1.32.0 + plugin TensorRT EP ([onnxruntime-ep-tensorrt](https://github.com/onnxruntime/onnxruntime-ep-tensorrt)) built against TensorRT 11.5 | source build (done in a CUDA 13.5 container; TensorRT 11 ships for CUDA 12 / 13 and Python 3.11–3.14) | 98.4% / 99.6%, 10.5 ms | 97.9% / 98.9%, 7.8 ms | 97.8% / 97.9%, 2.7 ms | TensorRT 11 is strongly typed only, so FP16 needs a typed graph (a fully FP16 typed `wholebody49` reaches 95.4%). The Python package looks for `onnxruntime_ep_tensorrt.so` while the Linux build produces `libonnxruntime_ep_tensorrt.so`; copy it under the expected name |
+| onnxruntime 1.27.0 (CPU package) + TensorRT RTX EP 0.4.0 (`onnxruntime-ep-nv-tensorrt-rtx-cu12`, TensorRT-RTX 1.6.1) | pip only; Ampere or newer | 98.3% / 99.9%, 11.3 ms | 98.1% / 98.7%, 7.2 ms | 97.8% / 97.2%, 2.2 ms | Pairs with the CPU onnxruntime package, so no CUDA EP in the same process. FP32 graphs 99.0–99.3% |
+| onnxruntime 1.30.0 + TensorRT RTX EP 0.5.0 (TensorRT-RTX 1.7.1) | pip only | **1.4%** | **52.7%** | **0.0%** | Regression: every graph that carries FP16 types collapses (13 of 14 configurations; boxes and scores both wrong, no non-finite values), FP32 graphs are fine (99.0–99.4%). Pin 0.4.0 |
+
+The native path of the demo reaches the same agreement and the same latency band with the TensorRT 10 that the TensorRT EP already loads, which is why neither route is wired into the demo. Keeping only the LayerNorm layers in FP32 was also measured on all three stacks and changes nothing (TensorRT computes them in FP32 internally).
+
+The three detector graphs in `models/` are TensorRT-repaired versions of the DEIMv2-Wholebody49 exports: the originals share one reshaped value tensor between the `GridSample` layers of the deformable decoder, and TensorRT's Reshape+GridSample fusion corrupts it, which already breaks FP32 engines (86–97% agreement, 65–87% on the head class through the EP). Each `GridSample` now reads its own copy; under onnxruntime the repaired graphs produce exactly the original outputs (difference 0), so dataset building and evaluation are unaffected.
 
 ## 7. Repository layout
 

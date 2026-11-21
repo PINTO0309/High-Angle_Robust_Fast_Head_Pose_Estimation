@@ -41,9 +41,17 @@ Usage (default models):
   python demo/demo_hfhpe_onnx.py -v input.mp4 -o output_dir --enable_mosaic
   python demo/demo_hfhpe_onnx.py -v 0 -o output_dir --detector_device cuda --pose_device tensorrt
   python demo/demo_hfhpe_onnx.py -pm models/hfhpe_hgnetv2_Nx3x64x64.onnx -i images -o out
+  python demo/demo_hfhpe_onnx.py -v 0 -o output_dir --detector_device tensorrt_native \
+      -dm models/deimv2_wholebody49_boxes_only_mixed_fp16.onnx   # TensorRT builder + runtime (no onnxruntime), STRONGLY_TYPED
+  python demo/demo_hfhpe_onnx.py -v 0 -o output_dir --detector_engine det.engine -dm models/deimv2_wholebody49_boxes_only.onnx
 
 Execution providers are selected independently: --detector_device defaults to cuda;
 --pose_device (also -d / --device) defaults to cuda if available, otherwise cpu.
+--detector_device tensorrt_native runs the detector on TensorRT directly (builder + runtime, no
+onnxruntime): the engine is built from the -dm graph (STRONGLY_TYPED when the graph carries explicit
+FP16 types, i.e. the *_mixed_fp16.onnx exports; otherwise --inference_type fp32 / fp16 / bf16) and
+cached under --trt_cache_dir, or loaded ready-built with --detector_engine. This is the only path
+that can keep selected layers in FP32 inside an FP16 engine (the onnxruntime TensorRT EP cannot).
 
 Keys (video / camera): ESC = quit, b = toggle the bboxes, a = toggle the 3 axes,
 t = toggle the angle text, r = toggle the yaw ring.
@@ -52,6 +60,7 @@ t = toggle the angle text, r = toggle the yaw ring.
 from __future__ import annotations
 
 import argparse
+import hashlib
 import json
 import math
 import time
@@ -135,7 +144,7 @@ class HeadResult:
 @dataclass
 class TrtSettings:
     """TensorRT EP precision and engine cache location (decided once at startup)."""
-    precision: str          # fp16 / bf16 / int8
+    precision: str          # fp32 / fp16 / bf16 / int8
     cache_dir: Path
     ort_version: str
     trt_version: str
@@ -181,7 +190,7 @@ def resolve_trt_precision(inference_type: str) -> str:
     """`auto`: bf16 with onnxruntime >= 1.25 (has trt_bf16_enable) on Ampere or newer, else fp16.
 
     An explicit choice is respected, but bf16 is not accepted by onnxruntime < 1.25, so that
-    case raises an error.
+    case raises an error. `fp32` disables the FP16 / BF16 flags (TF32 engine).
     """
     version = _ort_version_tuple()
     bf16_available = version >= (1, 25)
@@ -237,7 +246,9 @@ def build_providers(device: str | None, trt: TrtSettings | None = None) -> list:
             raise RuntimeError("TensorrtExecutionProvider is not available in this onnxruntime build.")
         if trt is None:
             raise ValueError("TensorRT settings are required for the tensorrt device")
-        if trt.precision == "fp16":
+        if trt.precision == "fp32":
+            type_params = {}
+        elif trt.precision == "fp16":
             type_params = {"trt_fp16_enable": True}
         elif trt.precision == "bf16":
             type_params = {"trt_bf16_enable": True}
@@ -291,6 +302,204 @@ def make_session(model: Path | bytes, providers: list) -> ort.InferenceSession:
 
 
 # ---------------------------------------------------------------------------
+# Native TensorRT (detector): TensorRT builder + runtime without onnxruntime
+# ---------------------------------------------------------------------------
+NATIVE_TRT_DEVICE = "tensorrt_native"
+
+
+@dataclass
+class NativeTrtSettings:
+    """Detector engine built or loaded without onnxruntime (`--detector_device tensorrt_native`,
+    `--detector_engine`). The onnxruntime TensorRT EP cannot keep selected layers in FP32 or build
+    STRONGLY_TYPED engines; this path can, which is what the `*_mixed_fp16.onnx` detector exports
+    need."""
+    precision: str                   # fp32 / fp16 / bf16 for plain graphs (ignored for mixed-precision graphs)
+    cache_dir: Path                  # engine cache root (--trt_cache_dir)
+    engine_path: Path | None = None  # ready-built engine to load instead of building
+
+
+def resolve_native_trt_precision(inference_type: str) -> str:
+    """Native path: `auto` means fp16 (the verified configuration); fp32 / fp16 / bf16 are taken as
+    given; int8 is rejected when the engine is built."""
+    return "fp16" if inference_type == "auto" else inference_type
+
+
+def import_tensorrt():
+    """The TensorRT Python module (`tensorrt`, or the bare `tensorrt_bindings` wheel), with an
+    installation hint that names the libnvinfer version the onnxruntime TensorRT EP already uses:
+    the bindings must match it."""
+    try:
+        import tensorrt as trt  # noqa: PLC0415
+        return trt
+    except ImportError:
+        pass
+    try:
+        import tensorrt_bindings as trt  # noqa: PLC0415
+        return trt
+    except ImportError as exc:
+        version = _tensorrt_version()
+        raise RuntimeError(
+            "The native TensorRT path needs the TensorRT Python bindings of the installed libnvinfer "
+            f"({version}). Install the wheel whose version starts with {version} into the project environment "
+            "(bindings only; the library itself is the one onnxruntime already loads), e.g.\n"
+            "  uv pip install --index-url https://pypi.nvidia.com --extra-index-url https://pypi.org/simple "
+            f"--index-strategy unsafe-best-match 'tensorrt-cu12-bindings=={version}.*'") from exc
+
+
+def onnx_has_fp16_types(model, model_path: Path) -> bool:
+    """True when the graph carries explicit FP16 types (Cast to FLOAT16 or FLOAT16 initializers):
+    a mixed-precision export such as `*_mixed_fp16.onnx`, whose per-tensor types must be built as
+    written (TensorRT STRONGLY_TYPED). Falls back to the file name when the graph is unavailable."""
+    if model is None:
+        return "mixed_fp16" in model_path.name.lower()
+    from onnx import TensorProto  # noqa: PLC0415
+    if any(t.data_type == TensorProto.FLOAT16 for t in model.graph.initializer):
+        return True
+    return any(node.op_type == "Cast" and any(a.name == "to" and a.i == TensorProto.FLOAT16 for a in node.attribute)
+               for node in model.graph.node)
+
+
+class NativeTrtSession:
+    """A TensorRT engine executed directly, exposing the subset of the onnxruntime
+    InferenceSession interface that HeadDetector uses (get_inputs, get_providers, run).
+
+    Engines built here are cached as
+    `<trt_cache_dir>/native_trt-<TensorRT version>_sm<cc>/<onnx stem>_<mode>_<sha256[:12]>.engine`
+    (an engine runs only on the TensorRT version and GPU that built it). Device buffers are torch
+    CUDA tensors; the detector runs one frame per call, so dynamic-batch graphs get a 1/1/1 profile.
+    """
+
+    class _Arg:
+        def __init__(self, name: str, shape: list[int]):
+            self.name, self.shape = name, shape
+
+    def __init__(self, model: Path | bytes, model_path: Path, settings: NativeTrtSettings,
+                 mixed_precision: bool):
+        import torch  # noqa: PLC0415
+        trt = import_tensorrt()
+        self.trt, self.torch = trt, torch
+        if not torch.cuda.is_available():
+            raise RuntimeError("The native TensorRT path needs a CUDA device visible to torch")
+        self.logger = trt.Logger(trt.Logger.ERROR)
+        self.dtypes = {trt.DataType.FLOAT: torch.float32, trt.DataType.HALF: torch.float16,
+                       trt.DataType.INT32: torch.int32, trt.DataType.INT64: torch.int64, trt.DataType.BOOL: torch.bool}
+        if hasattr(trt.DataType, "BF16"):
+            self.dtypes[trt.DataType.BF16] = torch.bfloat16
+        if settings.engine_path is not None:
+            if not settings.engine_path.exists():
+                raise FileNotFoundError(f"TensorRT engine not found: {settings.engine_path}")
+            plan = settings.engine_path.read_bytes()
+            self.mode = f"engine {settings.engine_path.name}"
+        else:
+            plan = self._build_or_reuse(model, model_path, settings, mixed_precision)
+        self.engine = trt.Runtime(self.logger).deserialize_cuda_engine(plan)
+        if self.engine is None:
+            raise RuntimeError(f"Could not deserialize the TensorRT engine with TensorRT {trt.__version__} "
+                               "(an engine runs only on the TensorRT version and GPU that built it)")
+        self.context = self.engine.create_execution_context()
+        names = [self.engine.get_tensor_name(i) for i in range(self.engine.num_io_tensors)]
+        self.engine_inputs = [n for n in names if self.engine.get_tensor_mode(n) == trt.TensorIOMode.INPUT]
+        self.engine_outputs = [n for n in names if self.engine.get_tensor_mode(n) == trt.TensorIOMode.OUTPUT]
+        self.stream = torch.cuda.Stream()
+        self.buffers: dict[str, torch.Tensor] = {}
+
+    def _build_or_reuse(self, model: Path | bytes, model_path: Path, settings: NativeTrtSettings,
+                        mixed_precision: bool) -> bytes:
+        trt = self.trt
+        mode = "strongly_typed" if mixed_precision else settings.precision
+        if mode not in ("strongly_typed", "fp32", "fp16", "bf16"):
+            raise ValueError(f"--inference_type {mode} is not supported on the native TensorRT path (fp32 / fp16 / bf16)")
+        if mixed_precision and settings.precision != "fp16":
+            print(f"TensorRT (native): {model_path.name} carries explicit FP16 types; built STRONGLY_TYPED, "
+                  f"--inference_type {settings.precision} is ignored")
+        data = model if isinstance(model, bytes) else Path(model).read_bytes()
+        cc = _compute_capability()
+        cache_dir = settings.cache_dir / f"native_trt-{trt.__version__}_sm{cc}"
+        cache_dir.mkdir(parents=True, exist_ok=True)
+        engine_file = cache_dir / f"{model_path.stem}_{mode}_{hashlib.sha256(data).hexdigest()[:12]}.engine"
+        self.mode = f"{mode}, {engine_file.name}"
+        if engine_file.exists():
+            return engine_file.read_bytes()
+        builder = trt.Builder(self.logger)
+        flags = (1 << int(trt.NetworkDefinitionCreationFlag.STRONGLY_TYPED)) if mixed_precision else 0
+        network = builder.create_network(flags)
+        parser = trt.OnnxParser(network, self.logger)
+        if not parser.parse(data, str(model_path)):
+            errors = "\n".join(str(parser.get_error(i)) for i in range(parser.num_errors))
+            raise RuntimeError(f"TensorRT could not parse {model_path}:\n{errors}")
+        config = builder.create_builder_config()
+        if mode == "fp16":
+            config.set_flag(trt.BuilderFlag.FP16)
+        elif mode == "bf16":
+            config.set_flag(trt.BuilderFlag.BF16)
+        inp = network.get_input(0)
+        shape = list(inp.shape)
+        if any(d < 0 for d in shape):
+            if shape[0] >= 0 or any(d < 0 for d in shape[1:]):
+                raise ValueError(f"Only a dynamic batch axis is supported, got detector input shape {shape}")
+            profile = builder.create_optimization_profile()
+            fixed = (1, *shape[1:])  # one frame per call
+            profile.set_shape(inp.name, fixed, fixed, fixed)
+            config.add_optimization_profile(profile)
+        print(f"TensorRT (native): building a {mode} engine from {model_path.name} (TensorRT {trt.__version__}, sm{cc}); "
+              f"this runs once and is cached at {engine_file}")
+        t0 = time.perf_counter()
+        plan = builder.build_serialized_network(network, config)
+        if plan is None:
+            raise RuntimeError("TensorRT engine build failed")
+        data_out = bytes(plan)
+        tmp = engine_file.with_name(engine_file.name + ".tmp")
+        tmp.write_bytes(data_out)
+        tmp.replace(engine_file)
+        print(f"TensorRT (native): engine built in {time.perf_counter() - t0:.0f} s")
+        return data_out
+
+    def _buffer(self, name: str, shape: tuple[int, ...], trt_dtype):
+        dtype = self.dtypes[trt_dtype]
+        buf = self.buffers.get(name)
+        if buf is None or tuple(buf.shape) != shape or buf.dtype != dtype:
+            buf = self.torch.empty(shape, dtype=dtype, device="cuda")
+            self.buffers[name] = buf
+        return buf
+
+    def get_inputs(self) -> list:
+        return [self._Arg(n, [int(d) for d in self.engine.get_tensor_shape(n)]) for n in self.engine_inputs]
+
+    def get_providers(self) -> list[str]:
+        return [f"NativeTensorRT {self.trt.__version__} ({self.mode})"]
+
+    def run(self, output_names: Sequence[str] | None, feed: dict[str, np.ndarray]) -> list[np.ndarray]:
+        torch = self.torch
+        outs: dict[str, torch.Tensor] = {}
+        with torch.cuda.stream(self.stream):
+            for name in self.engine_inputs:
+                if name not in feed:
+                    raise KeyError(f"Engine input {name!r} is missing from the feed {sorted(feed)}")
+                x = np.ascontiguousarray(feed[name])
+                if any(d < 0 for d in tuple(self.engine.get_tensor_shape(name))):
+                    self.context.set_input_shape(name, tuple(x.shape))
+                buf = self._buffer(name, tuple(x.shape), self.engine.get_tensor_dtype(name))
+                buf.copy_(torch.from_numpy(x).to(buf.dtype))
+                self.context.set_tensor_address(name, buf.data_ptr())
+            for name in self.engine_outputs:
+                buf = self._buffer(name, tuple(self.context.get_tensor_shape(name)), self.engine.get_tensor_dtype(name))
+                self.context.set_tensor_address(name, buf.data_ptr())
+                outs[name] = buf
+            if not self.context.execute_async_v3(self.stream.cuda_stream):
+                raise RuntimeError("TensorRT execute_async_v3 failed")
+        self.stream.synchronize()
+        result = []
+        for name in (output_names or self.engine_outputs):
+            if name not in outs:
+                raise KeyError(f"The engine has no output {name!r} (outputs: {self.engine_outputs})")
+            out = outs[name]
+            if out.dtype in (torch.float16, torch.bfloat16):
+                out = out.float()
+            result.append(out.cpu().numpy())
+        return result
+
+
+# ---------------------------------------------------------------------------
 # Stage 1: DEIMv2-Wholebody49 (head detection)
 # ---------------------------------------------------------------------------
 DETECTOR_OUTPUT = "label_xyxy_score"
@@ -312,15 +521,20 @@ def detect_detector_norm(model, model_path: Path) -> str:
     DINOv3 (ViT) based DEIMv2 models are trained with ImageNet mean/std normalization, while
     HGNetV2 based ones are trained with division by 255 only. The normalization is not embedded
     in the graph, so the model is treated as ViT based when a Conv fed directly by the input is a
-    patch embedding (stride 8 or more). If the graph is not available (`model` is None), the
-    decision is based on whether the file name contains "dinov3".
+    patch embedding (stride 8 or more). Cast nodes between the input and that Conv are looked
+    through (the mixed-precision `*_mixed_fp16.onnx` exports cast the input to FP16 first). If the
+    graph is not available (`model` is None), the decision is based on whether the file name
+    contains "dinov3".
     """
     if model is None:
         return "imagenet" if "dinov3" in model_path.name.lower() else "div255"
     graph = model.graph
-    input_name = graph.input[0].name
+    input_names = {graph.input[0].name}
+    for node in graph.node:  # follow the input through Cast nodes (topological order)
+        if node.op_type == "Cast" and node.input and node.input[0] in input_names:
+            input_names.update(node.output)
     for node in graph.node:
-        if node.op_type == "Conv" and input_name in node.input:
+        if node.op_type == "Conv" and input_names.intersection(node.input):
             strides = next((list(a.ints) for a in node.attribute if a.name == "strides"), [1, 1])
             if max(strides) >= 8:
                 return "imagenet"
@@ -399,12 +613,17 @@ class HeadDetector:
     IMAGENET_MEAN = np.array([0.485, 0.456, 0.406], dtype=np.float32).reshape(1, 3, 1, 1)
     IMAGENET_STD = np.array([0.229, 0.224, 0.225], dtype=np.float32).reshape(1, 3, 1, 1)
 
-    def __init__(self, model_path: Path, providers: list, score_threshold: float,
-                 input_norm: str = "auto", detect_all_classes: bool = False):
+    def __init__(self, model_path: Path, providers: list | None, score_threshold: float,
+                 input_norm: str = "auto", detect_all_classes: bool = False,
+                 native_trt: NativeTrtSettings | None = None):
         model = load_onnx_model(model_path)
         self.input_norm = (detect_detector_norm(model, model_path) if input_norm == "auto"
                            else input_norm)
-        self.session = make_session(prune_detector_model(model, model_path), providers)
+        pruned = prune_detector_model(model, model_path)
+        if native_trt is not None:
+            self.session = NativeTrtSession(pruned, model_path, native_trt, onnx_has_fp16_types(model, model_path))
+        else:
+            self.session = make_session(pruned, providers)
         del model
         self.providers = self.session.get_providers()
         self.score_threshold = score_threshold
@@ -888,11 +1107,22 @@ class Pipeline:
             self.trt = prepare_trt_cache(Path(args.trt_cache_dir), resolve_trt_precision(args.inference_type))
             print(f"TensorRT: precision {self.trt.precision} (onnxruntime {self.trt.ort_version}, TensorRT {self.trt.trt_version}, "
                   f"sm{self.trt.compute_capability}), engine cache {self.trt.cache_dir}")
-        detector_providers = build_providers(args.detector_device, self.trt)
+        self.native_trt: NativeTrtSettings | None = None
+        if args.detector_engine is not None or (args.detector_device or "").lower() == NATIVE_TRT_DEVICE:
+            self.native_trt = NativeTrtSettings(precision=resolve_native_trt_precision(args.inference_type),
+                                                cache_dir=Path(args.trt_cache_dir),
+                                                engine_path=Path(args.detector_engine) if args.detector_engine else None)
+            detector_providers = None
+            print("TensorRT (native): detector " + (f"engine {self.native_trt.engine_path}" if self.native_trt.engine_path
+                  else f"built from {det_path.name}, precision {self.native_trt.precision} (STRONGLY_TYPED for mixed-precision graphs), "
+                       f"engine cache {self.native_trt.cache_dir}"))
+        else:
+            detector_providers = build_providers(args.detector_device, self.trt)
         pose_providers = build_providers(args.pose_device, self.trt)
         self.detect_all_classes = args.detect_all_classes
         self.detector = HeadDetector(det_path, detector_providers, args.head_score_threshold,
-                                     args.detector_norm, detect_all_classes=self.detect_all_classes)
+                                     args.detector_norm, detect_all_classes=self.detect_all_classes,
+                                     native_trt=self.native_trt)
         self.estimator = HeadPoseEstimator(pose_path, pose_providers, args.crop_margin, args.crop_border,
                                            args.max_batch)
         self.enable_mosaic = args.enable_mosaic
@@ -1098,12 +1328,20 @@ def parse_args() -> argparse.Namespace:
     src.add_argument("-v", "--video", type=str, help="video file path or camera index")
     ap.add_argument("-o", "--output_dir", type=str, default="output")
     ap.add_argument("--detector_device", type=str, default="cuda",
-                    help="detector execution provider: cpu, cuda, cuda:0 or tensorrt (default: cuda)")
+                    help="detector execution provider: cpu, cuda, cuda:0, tensorrt (onnxruntime TensorRT EP) or "
+                         "tensorrt_native (TensorRT builder + runtime without onnxruntime: builds the engine from -dm, "
+                         "STRONGLY_TYPED for the *_mixed_fp16.onnx graphs, otherwise --inference_type; cached under "
+                         "--trt_cache_dir) (default: cuda)")
+    ap.add_argument("--detector_engine", type=str, default=None,
+                    help="ready-built TensorRT engine for the detector (implies --detector_device tensorrt_native); "
+                         "-dm must still name the ONNX it was built from, which decides the input normalization")
     ap.add_argument("-d", "--device", "--pose_device", dest="pose_device", type=str, default=None,
                     help="pose execution provider only: cpu, cuda, cuda:0 or tensorrt "
                          "(default: cuda if available, otherwise cpu)")
-    ap.add_argument("--inference_type", type=str, choices=["auto", "fp16", "bf16", "int8"], default="auto",
-                    help="TensorRT precision; auto = bf16 with onnxruntime-gpu >= 1.25 on Ampere or newer GPUs, otherwise fp16")
+    ap.add_argument("--inference_type", type=str, choices=["auto", "fp32", "fp16", "bf16", "int8"], default="auto",
+                    help="TensorRT precision; auto = bf16 with onnxruntime-gpu >= 1.25 on Ampere or newer GPUs, otherwise fp16 "
+                         "(tensorrt_native: auto = fp16). fp32 keeps the whole engine in FP32 (TF32) on both paths; "
+                         "mixed-precision detector graphs are always built as typed (STRONGLY_TYPED) on the native path")
     ap.add_argument("--ort_log_level", type=str, choices=list(_ORT_LOG_LEVELS), default="error",
                     help="onnxruntime global log level (default: error, which hides the TensorRT engine-build warnings)")
     ap.add_argument("--trt_cache_dir", type=str, default="models/trt_cache",
